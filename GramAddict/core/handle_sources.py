@@ -273,6 +273,7 @@ def handle_blogger_from_file(
 
 def do_unfollow_from_list(device, username, on_following_list):
     if not on_following_list:
+        logger.warning("hola ke ase")
         ProfileView(device).click_on_avatar()
         if ProfileView(device).navigateToFollowing() and UniversalActions(
             device
@@ -669,6 +670,7 @@ def handle_followers(
     interaction,
     is_follow_limit_reached,
     scroll_end_detector,
+    profile_filter=None,
 ):
     is_myself = username == session_state.my_username
     if not nav_to_blogger(device, username, current_job):
@@ -686,6 +688,7 @@ def handle_followers(
         session_state,
         current_job,
         username,
+        profile_filter,
     )
 
 
@@ -701,6 +704,7 @@ def iterate_over_followers(
     session_state,
     current_job,
     target,
+    profile_filter=None,
 ):
     device.find(
         resourceId=self.ResourceID.FOLLOW_LIST_CONTAINER,
@@ -744,6 +748,8 @@ def iterate_over_followers(
                 can_interact = False
                 if storage.is_user_in_blacklist(username):
                     logger.info(f"@{username} is in blacklist. Skip.")
+                elif profile_filter is not None and profile_filter.is_handler_blacklisted(username):
+                    pass  # Skip due to handler blacklist (message logged in filter function)
                 else:
                     interacted, interacted_when = storage.check_user_was_interacted(
                         username

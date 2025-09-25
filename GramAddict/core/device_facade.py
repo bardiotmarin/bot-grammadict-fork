@@ -9,13 +9,18 @@ from re import search
 from subprocess import PIPE, run
 from time import sleep
 from typing import Optional
+import time  # Add explicit time import for error handling
 
 import uiautomator2
 
 from GramAddict.core.utils import random_sleep
 
 logger = logging.getLogger(__name__)
+configs = None
 
+def load_config(config):
+    global configs
+    configs = config
 
 def create_device(device_id, app_id):
     try:
@@ -91,8 +96,39 @@ class DeviceFacade:
                 )
             else:
                 self.deviceV2 = uiautomator2.connect_adb_wifi(f"{device_id}")
+            # Reset UI Automator service on startup
+            self.reset_uiautomator()
         except ImportError:
             raise ImportError("Please install uiautomator2: pip3 install uiautomator2")
+
+    def reset_uiautomator(self):
+        """Reset the UI Automator service to ensure a clean state."""
+        logger.info("Resetting UI Automator service...")
+        try:
+            # Use the modern uiautomator2 API
+            if hasattr(self.deviceV2, 'uiautomator'):
+                # Modern API: d.uiautomator.stop() / d.uiautomator.start()
+                self.deviceV2.uiautomator.stop()
+                sleep(2)
+                self.deviceV2.uiautomator.start()
+                sleep(3)
+            elif hasattr(self.deviceV2, 'reset_uiautomator'):
+                # Fallback: use built-in reset method
+                self.deviceV2.reset_uiautomator()
+                sleep(3)
+            else:
+                # Last resort: try to reconnect
+                logger.debug("No reset method available, attempting reconnection...")
+                self.deviceV2.wait_timeout = 10.0
+                sleep(3)
+
+            # Verify service is responsive
+            self.deviceV2.dump_hierarchy()
+            logger.info("Successfully reset UI Automator service")
+            return True
+        except Exception as e:
+            logger.warning(f"Failed to reset UI Automator service: {str(e)}")
+            return False
 
     def _get_current_app(self):
         try:
@@ -245,17 +281,82 @@ class DeviceFacade:
         if self.deviceV2 is not None:
             attempts = 0
             while not self.is_alive() and attempts < 5:
+                if attempts > 0:
+                    # Try resetting UI Automator service if first reconnect attempt fails
+                    self.reset_uiautomator()
                 self.get_info()
                 attempts += 1
+            
+            # Final check - if still not alive after retries, try one last reset
+            if not self.is_alive():
+                logger.warning("Device still not responsive, attempting final UI Automator reset...")
+                self.reset_uiautomator()
 
     def unlock(self):
-        self.swipe(Direction.UP, 0.8)
-        sleep(2)
-        logger.debug(f"Screen locked: {self.is_screen_locked()}")
+        """Unlock the device screen. If device-password is configured, it will attempt to use it."""
+        # Try different swipe patterns to reveal password field
+        unlock_patterns = [
+            (Direction.UP, 0.8),     # Standard swipe up
+            (Direction.UP, 0.5),     # Shorter swipe up
+            (Direction.UP, 1.0),     # Longer swipe up
+            (Direction.RIGHT, 0.8),  # Right swipe for pattern unlock
+            (Direction.LEFT, 0.8),   # Left swipe for some devices
+        ]
+        
+        for direction, scale in unlock_patterns:
+            logger.debug(f"Trying unlock swipe: {direction.name}, scale={scale}")
+            self.swipe(direction, scale)
+            sleep(1)
+            
+            # Check if we successfully unlocked
+            if not self.is_screen_locked():
+                return
+                
+            # Check for password field
+            password_field = self.deviceV2(className="android.widget.EditText")
+            if password_field.exists:
+                logger.debug("Found password field, attempting password unlock")
+                break
+        
+        # At this point either we found password field or exhausted swipe patterns
         if self.is_screen_locked():
-            self.swipe(Direction.RIGHT, 0.8)
-            sleep(2)
-            logger.debug(f"Screen locked: {self.is_screen_locked()}")
+            if configs is None:
+                logger.error("Device is locked but config is not loaded. Cannot attempt password unlock.")
+                raise DeviceFacade.DeviceLockError("Device is locked and config is not loaded")
+            
+            if not hasattr(configs, 'args'):
+                logger.error("Device is locked but config args are not available. Cannot attempt password unlock.")
+                raise DeviceFacade.DeviceLockError("Device is locked and config args are not available")
+            
+            if not hasattr(configs.args, 'device_password') or not configs.args.device_password:
+                logger.error("Device is locked with a password/PIN but no device-password is configured in config.yml")
+                raise DeviceFacade.DeviceLockError("Device is locked but no password configured. Add device-password to your config.yml")
+            
+            try:
+                # Wake up the device if needed
+                if not self.get_info()['screenOn']:
+                    self.press_power()
+                    sleep(1)
+                
+                # Type the password/PIN
+                logger.info("Attempting to unlock device with configured password...")
+                cmd = f"adb{'' if self.device_id is None else f' -s {self.device_id}'} shell input text {configs.args.device_password}"
+                run(cmd, shell=True, check=True)
+                sleep(1)
+                
+                # Press enter to confirm
+                cmd = f"adb{'' if self.device_id is None else f' -s {self.device_id}'} shell input keyevent 66"
+                run(cmd, shell=True, check=True)
+                sleep(2)
+                
+                if not self.is_screen_locked():
+                    logger.info("Successfully unlocked device with password.")
+                else:
+                    logger.error("Failed to unlock device with configured password. Please check if the password is correct.")
+                    raise DeviceFacade.DeviceLockError("Failed to unlock with configured password")
+            except Exception as e:
+                logger.error(f"Error while trying to unlock device with password: {str(e)}")
+                raise DeviceFacade.DeviceLockError(f"Error unlocking device: {str(e)}")
 
     def screen_off(self):
         self.deviceV2.screen_off()
@@ -615,11 +716,29 @@ class DeviceFacade:
             except uiautomator2.JSONRPCError as e:
                 raise DeviceFacade.JsonRpcError(e)
 
-        def get_bounds(self) -> dict:
-            try:
-                return self.viewV2.info["bounds"]
-            except uiautomator2.JSONRPCError as e:
-                raise DeviceFacade.JsonRpcError(e)
+        def get_bounds(self):
+            max_retries = 2
+            retry_delay = 2
+            
+            for attempt in range(max_retries):
+                try:
+                    return self.viewV2.info["bounds"]
+                except uiautomator2.exceptions.UiObjectNotFoundError as e:
+                    if attempt < max_retries - 1:
+                        logger.debug(f"Failed to get bounds (attempt {attempt + 1}/{max_retries}), retrying in {retry_delay}s...")
+                        time.sleep(retry_delay)
+                        # Try resetting UI Automator if this is the last retry
+                        if attempt == max_retries - 2:
+                            try:
+                                # Use the proper reset method instead of direct service access
+                                self.deviceV2.reset_uiautomator()
+                                time.sleep(2)
+                            except Exception as e2:
+                                logger.debug(f"Failed to reset UI Automator during bounds retry: {str(e2)}")
+                    else:
+                        raise DeviceFacade.JsonRpcError(f"Failed to get bounds after {max_retries} attempts: {str(e)}")
+                except Exception as e:
+                    raise DeviceFacade.JsonRpcError(f"Unexpected error getting bounds: {str(e)}")
 
         def get_height(self) -> int:
             bounds = self.get_bounds()
@@ -740,4 +859,7 @@ class DeviceFacade:
         pass
 
     class AppHasCrashed(Exception):
+        pass
+
+    class DeviceLockError(Exception):
         pass

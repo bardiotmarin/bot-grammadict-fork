@@ -138,60 +138,99 @@ class TabBarView:
         logger.debug(f"Navigate to {tab_name}")
         button = None
         UniversalActions.close_keyboard(self.device)
-        if tab == TabBarTabs.HOME:
-            button = self.device.find(
-                classNameMatches=ClassName.BUTTON_OR_FRAME_LAYOUT_REGEX,
-                descriptionMatches=case_insensitive_re(TabBarText.HOME_CONTENT_DESC),
-            )
-
-        elif tab == TabBarTabs.SEARCH:
-            button = self.device.find(
-                classNameMatches=ClassName.BUTTON_OR_FRAME_LAYOUT_REGEX,
-                descriptionMatches=case_insensitive_re(TabBarText.SEARCH_CONTENT_DESC),
-            )
-
-            if not button.exists():
-                # Some accounts display the search btn only in Home -> action bar
-                logger.debug("Didn't find search in the tab bar...")
-                home_view = self.navigateToHome()
-                home_view.navigateToSearch()
-                return
-        elif tab == TabBarTabs.REELS:
-            button = self.device.find(
-                classNameMatches=ClassName.BUTTON_OR_FRAME_LAYOUT_REGEX,
-                descriptionMatches=case_insensitive_re(TabBarText.REELS_CONTENT_DESC),
-            )
-
-        elif tab == TabBarTabs.ORDERS:
-            button = self.device.find(
-                classNameMatches=ClassName.BUTTON_OR_FRAME_LAYOUT_REGEX,
-                descriptionMatches=case_insensitive_re(TabBarText.ORDERS_CONTENT_DESC),
-            )
-
-        elif tab == TabBarTabs.ACTIVITY:
-            button = self.device.find(
-                classNameMatches=ClassName.BUTTON_OR_FRAME_LAYOUT_REGEX,
-                descriptionMatches=case_insensitive_re(
-                    TabBarText.ACTIVITY_CONTENT_DESC
-                ),
-            )
-
-        elif tab == TabBarTabs.PROFILE:
-            button = self.device.find(
-                classNameMatches=ClassName.BUTTON_OR_FRAME_LAYOUT_REGEX,
-                descriptionMatches=case_insensitive_re(TabBarText.PROFILE_CONTENT_DESC),
-            )
-            if not button.exists():
-                button = self._get_new_profile_position()
-
-        if button is not None and button.exists(Timeout.MEDIUM):
-            # Two clicks to reset tab content
-            button.click(sleep=SleepTime.SHORT)
-            if tab is not TabBarTabs.PROFILE:
-                button.click(sleep=SleepTime.SHORT)
+        
+        if tab == TabBarTabs.PROFILE:
+            # Try multiple ways to find the profile button
+            try:
+                # Try finding by tab bar first
+                tab_bar = self._getTabBar()
+                if tab_bar and tab_bar.exists():
+                    button = tab_bar.child(index=-1)  # Profile is usually last tab
+                    
+                if not button or not button.exists():
+                    # Try finding by profile image
+                    button = self.device.find(
+                        className=ClassName.IMAGE_VIEW,
+                        descriptionMatches=case_insensitive_re("Profile picture|Profile Photo"),
+                    )
+                
+                if not button or not button.exists():
+                    button = self.device.find(
+                        classNameMatches=ClassName.BUTTON_OR_FRAME_LAYOUT_REGEX,
+                        descriptionMatches=case_insensitive_re("Profile, Tab|Profile"),
+                    )
+                
+                if not button or not button.exists():
+                    button = self.device.find(
+                        classNameMatches=ClassName.BUTTON_OR_FRAME_LAYOUT_REGEX,
+                        descriptionMatches=case_insensitive_re(TabBarText.PROFILE_CONTENT_DESC),
+                    )
+                
+                if not button or not button.exists():
+                    button = self._get_new_profile_position()
+                
+                if button and button.exists(Timeout.MEDIUM):
+                    logger.debug("Found profile button, clicking...")
+                    button.click(sleep=SleepTime.SHORT)
+                    # Verify we made it to profile by checking for following count
+                    profile_view = ProfileView(self.device)
+                    if profile_view.getFollowingCount() is not None:
+                        logger.debug("Successfully reached profile")
+                        return
+                    else:
+                        logger.warning("Profile navigation may have failed - following count not found")
+                        
+            except Exception as e:
+                logger.debug(f"Exception while finding profile button: {str(e)}")
+                # Even if we got an exception, check if we made it to profile
+                profile_view = ProfileView(self.device)
+                if profile_view.getFollowingCount() is not None:
+                    logger.debug("Successfully reached profile despite exception")
+                    return
+                
+            logger.error("Could not find profile tab button")
             return
+            
+        else:
+            # Original code for other tabs
+            if tab == TabBarTabs.HOME:
+                button = self.device.find(
+                    classNameMatches=ClassName.BUTTON_OR_FRAME_LAYOUT_REGEX,
+                    descriptionMatches=case_insensitive_re(TabBarText.HOME_CONTENT_DESC),
+                )
+            elif tab == TabBarTabs.SEARCH:
+                button = self.device.find(
+                    classNameMatches=ClassName.BUTTON_OR_FRAME_LAYOUT_REGEX,
+                    descriptionMatches=case_insensitive_re(TabBarText.SEARCH_CONTENT_DESC),
+                )
+                if not button.exists():
+                    logger.debug("Didn't find search in the tab bar...")
+                    home_view = self.navigateToHome()
+                    home_view.navigateToSearch()
+                    return
+            elif tab == TabBarTabs.REELS:
+                button = self.device.find(
+                    classNameMatches=ClassName.BUTTON_OR_FRAME_LAYOUT_REGEX,
+                    descriptionMatches=case_insensitive_re(TabBarText.REELS_CONTENT_DESC),
+                )
+            elif tab == TabBarTabs.ORDERS:
+                button = self.device.find(
+                    classNameMatches=ClassName.BUTTON_OR_FRAME_LAYOUT_REGEX,
+                    descriptionMatches=case_insensitive_re(TabBarText.ORDERS_CONTENT_DESC),
+                )
+            elif tab == TabBarTabs.ACTIVITY:
+                button = self.device.find(
+                    classNameMatches=ClassName.BUTTON_OR_FRAME_LAYOUT_REGEX,
+                    descriptionMatches=case_insensitive_re(TabBarText.ACTIVITY_CONTENT_DESC),
+                )
 
-        logger.error(f"Didn't find tab {tab_name} in the tab bar...")
+            if button is not None and button.exists(Timeout.MEDIUM):
+                button.click(sleep=SleepTime.SHORT)
+                if tab is not TabBarTabs.PROFILE:
+                    button.click(sleep=SleepTime.SHORT)
+                return
+
+            logger.error(f"Didn't find tab {tab_name} in the tab bar...")
 
 
 class ActionBarView:
@@ -1086,10 +1125,31 @@ class AccountView:
 
     def navigate_to_main_account(self):
         logger.debug("Navigating to main account...")
-        profile_view = ProfileView(self.device)
+
+        # First ensure we're on the home screen to avoid clicking wrong avatars
+        tab_bar = TabBarView(self.device)
+        tab_bar.navigateToHome()
+
+        # Now try using the tab bar to navigate to profile
+        profile_view = tab_bar.navigateToProfile()
+
+        # Check if we successfully navigated to profile
+        if profile_view.getFollowingCount() is not None:
+            logger.info("Successfully navigated to profile")
+            return
+
+        # If tab bar navigation failed, try avatar method from home
+        logger.debug("Tab bar navigation failed, trying avatar method...")
+        tab_bar.navigateToHome()  # Ensure we're on home before clicking avatar
         profile_view.click_on_avatar()
         if profile_view.getFollowingCount() is None:
             profile_view.click_on_avatar()
+
+        # If still not on profile, something is wrong
+        if profile_view.getFollowingCount() is None:
+            logger.error("Failed to navigate to profile view")
+            return False
+        return True
 
     def changeToUsername(self, username: str):
         action_bar = ProfileView._getActionBarTitleBtn(self)
@@ -1535,12 +1595,124 @@ class ProfileView(ActionBarView):
 
     def _new_ui_profile_button(self) -> bool:
         found = False
-        buttons = self.device.find(className=ResourceID.BUTTON)
-        for button in buttons:
-            if button.get_desc() == "Profile":
-                button.click()
-                found = True
-        return found
+        max_retries = 3
+        retry_count = 0
+
+        while retry_count < max_retries:
+            try:
+                # Check UI Automator health
+                logger.debug("Checking UI Automator health...")
+                try:
+                    self.device.deviceV2.dump_hierarchy()
+                    logger.debug("UI Automator appears healthy")
+                except Exception as e:
+                    logger.warning(f"UI Automator health check failed: {str(e)}")
+                    logger.info("Attempting to restart UI Automator service...")
+                    
+                    # Stop existing service
+                    try:
+                        self.device.deviceV2.service.stop()
+                        sleep(2)
+                    except Exception:
+                        pass
+                        
+                    # Start new service
+                    try:
+                        self.device.deviceV2.service.start()
+                        sleep(3)
+                        # Verify service is responsive
+                        self.device.deviceV2.dump_hierarchy()
+                        logger.info("Successfully restarted UI Automator service")
+                    except Exception as e2:
+                        logger.error(f"Failed to restart UI Automator: {str(e2)}")
+                        retry_count += 1
+                        sleep(5)  # Wait before retry
+                        continue
+
+                # Try multiple methods to find and click profile button
+                methods = [
+                    # Method 1: Find by tab bar
+                    lambda: self.device.find(
+                        resourceIdMatches=case_insensitive_re(ResourceID.TAB_BAR),
+                        className=ClassName.LINEAR_LAYOUT
+                    ).child(index=-1),
+                    
+                    # Method 2: Find by profile image
+                    lambda: self.device.find(
+                        className=ClassName.IMAGE_VIEW,
+                        descriptionMatches=case_insensitive_re("Profile picture|Profile Photo")
+                    ),
+                    
+                    # Method 3: Find by button description
+                    lambda: self.device.find(
+                        classNameMatches=ClassName.BUTTON_OR_FRAME_LAYOUT_REGEX,
+                        descriptionMatches=case_insensitive_re("Profile, Tab|Profile")
+                    ),
+                    
+                    # Method 4: Find by content description
+                    lambda: self.device.find(
+                        classNameMatches=ClassName.BUTTON_OR_FRAME_LAYOUT_REGEX,
+                        descriptionMatches=case_insensitive_re(TabBarText.PROFILE_CONTENT_DESC)
+                    )
+                ]
+
+                for method in methods:
+                    try:
+                        button = method()
+                        if button.exists(Timeout.SHORT):
+                            logger.debug("Found profile button, attempting to click...")
+                            button.click(sleep=SleepTime.SHORT)
+                            
+                            # Verify navigation success
+                            sleep(2)  # Wait for navigation
+                            following_count = self.getFollowingCount()
+                            if following_count is not None:
+                                logger.debug("Successfully reached profile!")
+                                return True
+                    except Exception as e:
+                        logger.debug(f"Method failed: {str(e)}")
+                        continue
+
+                # If all methods fail, try blind clicks
+                logger.debug("Trying blind clicks as last resort...")
+                display_width = self.device.get_info()["displayWidth"]
+                display_height = self.device.get_info()["displayHeight"]
+                
+                click_positions = [
+                    (display_width - 25, display_height - 25),
+                    (display_width - 60, display_height - 40),
+                    (display_width - 100, display_height - 25)
+                ]
+                
+                for x, y in click_positions:
+                    try:
+                        logger.debug(f"Attempting blind click at ({x}, {y})")
+                        self.device.deviceV2.click(x, y)
+                        sleep(3)
+                        
+                        following_count = self.getFollowingCount()
+                        if following_count is not None:
+                            logger.debug("Successfully reached profile via blind click!")
+                            return True
+                    except Exception as e:
+                        logger.debug(f"Blind click failed: {str(e)}")
+                        continue
+
+                retry_count += 1
+                if retry_count < max_retries:
+                    logger.info(f"Profile navigation attempt {retry_count + 1}/{max_retries} failed, retrying...")
+                    sleep(5)  # Wait before retry
+                
+            except Exception as e:
+                logger.error(f"Unexpected error during profile navigation: {str(e)}")
+                retry_count += 1
+                if retry_count < max_retries:
+                    logger.info(f"Retrying after error ({retry_count}/{max_retries})...")
+                    sleep(5)
+                continue
+
+        logger.error("All attempts to navigate to profile failed")
+        return False
 
     def _old_ui_profile_button(self) -> bool:
         found = False

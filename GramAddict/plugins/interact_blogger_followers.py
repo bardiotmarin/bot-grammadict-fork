@@ -193,4 +193,5 @@ class InteractBloggerFollowers_Following(Plugin):
             interaction,
             is_follow_limit_reached,
             posts_end_detector,
+            profile_filter,
         )

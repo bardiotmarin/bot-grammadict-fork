@@ -757,3 +757,26 @@ class Filter:
     def _get_link_in_bio(device, profileView: ProfileView = None) -> str:
         profileView = ProfileView(device) if profileView is None else profileView
         return profileView.getLinkInBio()
+
+    def is_handler_blacklisted(self, username: str) -> bool:
+        """Check if username starts or ends with blacklisted words"""
+        if self.conditions is None:
+            return False
+
+        field_blacklist_words = self.conditions.get(FIELD_BLACKLIST_WORDS, [])
+
+        if not field_blacklist_words:
+            return False
+
+        username_lower = username.lower()
+
+        for word in field_blacklist_words:
+            word_lower = word.lower()
+            if username_lower.startswith(word_lower) or username_lower.endswith(word_lower):
+                logger.info(
+                    f"@{username} handler starts/ends with blacklisted word '{word}', skip.",
+                    extra={"color": f"{Fore.CYAN}"},
+                )
+                return True
+
+        return False
