@@ -5,7 +5,7 @@ from datetime import datetime
 from os import path
 from random import choice, randint, shuffle, uniform
 from time import sleep, time
-from typing import Optional, Tuple, List
+from typing import List, Optional, Tuple
 
 import emoji
 import spintax

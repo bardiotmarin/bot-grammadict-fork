@@ -97,7 +97,7 @@ class DeviceFacade:
             else:
                 self.deviceV2 = uiautomator2.connect_adb_wifi(f"{device_id}")
             # Reset UI Automator service on startup
-            self.reset_uiautomator()
+            # self.reset_uiautomator()
         except ImportError:
             raise ImportError("Please install uiautomator2: pip3 install uiautomator2")
 
@@ -283,14 +283,15 @@ class DeviceFacade:
             while not self.is_alive() and attempts < 5:
                 if attempts > 0:
                     # Try resetting UI Automator service if first reconnect attempt fails
-                    self.reset_uiautomator()
+                    # self.reset_uiautomator()
+                    pass
                 self.get_info()
                 attempts += 1
             
             # Final check - if still not alive after retries, try one last reset
-            if not self.is_alive():
-                logger.warning("Device still not responsive, attempting final UI Automator reset...")
-                self.reset_uiautomator()
+            # if not self.is_alive():
+            #     logger.warning("Device still not responsive, attempting final UI Automator reset...")
+            #     self.reset_uiautomator()
 
     def unlock(self):
         """Unlock the device screen. If device-password is configured, it will attempt to use it."""
@@ -728,13 +729,13 @@ class DeviceFacade:
                         logger.debug(f"Failed to get bounds (attempt {attempt + 1}/{max_retries}), retrying in {retry_delay}s...")
                         time.sleep(retry_delay)
                         # Try resetting UI Automator if this is the last retry
-                        if attempt == max_retries - 2:
-                            try:
-                                # Use the proper reset method instead of direct service access
-                                self.deviceV2.reset_uiautomator()
-                                time.sleep(2)
-                            except Exception as e2:
-                                logger.debug(f"Failed to reset UI Automator during bounds retry: {str(e2)}")
+                        # if attempt == max_retries - 2:
+                        #     try:
+                        #         # Use the proper reset method instead of direct service access
+                        #         self.deviceV2.reset_uiautomator()
+                        #         time.sleep(2)
+                        #     except Exception as e2:
+                        #         logger.debug(f"Failed to reset UI Automator during bounds retry: {str(e2)}")
                     else:
                         raise DeviceFacade.JsonRpcError(f"Failed to get bounds after {max_retries} attempts: {str(e)}")
                 except Exception as e:

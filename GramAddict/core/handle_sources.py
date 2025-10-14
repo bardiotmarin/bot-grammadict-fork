@@ -550,6 +550,8 @@ def handle_posts(
                 can_interact = False
                 if storage.is_user_in_blacklist(username):
                     logger.info(f"@{username} is in blacklist. Skip.")
+                elif profile_filter is not None and profile_filter.is_handler_blacklisted(username):
+                    pass  # Skip due to handler blacklist (message logged in filter function)
                 else:
                     likes_in_range = profile_filter.is_num_likers_in_range(
                         number_of_likers
