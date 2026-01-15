@@ -740,39 +740,126 @@ def _send_PM(
             return False
         nl = "\n"
         nlv = "\\n"
-        logger.info(
-            f"Write private message: {message.replace(nl, nlv)}",
-            extra={"color": f"{Fore.CYAN}"},
-        )
-        message_box.set_text(message, Mode.PASTE if args.dont_type else Mode.TYPE)
-        send_button = device.find(
-            resourceId=ResourceID.ROW_THREAD_COMPOSER_BUTTON_SEND,
-        )
-        if send_button.exists():
-            send_button.click()
-            universal_actions.detect_block(device)
-            universal_actions.close_keyboard(device)
-            posted_text = device.find(text=f"{message}")
-            message_sending_icon = device.find(
-                resourceId=ResourceID.ACTION_ICON, className=ClassName.IMAGE_VIEW
+
+        # Check if message contains Instagram link
+        if "instagram.com/reel" in message or "instagram.com/p/" in message:
+            parts = message.split("https://")
+            main_text = parts[0].strip()
+            link_text = f"https://{parts[1].strip()}" if len(parts) > 1 else ""
+
+            # Send the main text first
+            logger.info(
+                f"Write private message (text part): {main_text.replace(nl, nlv)}",
+                extra={"color": f"{Fore.CYAN}"},
             )
-            if message_sending_icon.exists():
-                random_sleep()
-            if posted_text.exists(Timeout.MEDIUM) and not message_sending_icon.exists():
-                logger.info("PM send succeed.", extra={"color": f"{Fore.GREEN}"})
-                session_state.totalPm += 1
-                pm_confirmed = True
+            message_box.set_text(main_text, Mode.PASTE if args.dont_type else Mode.TYPE)
+            send_button = device.find(
+                resourceId=ResourceID.ROW_THREAD_COMPOSER_BUTTON_SEND,
+            )
+            if send_button.exists():
+                send_button.click()
+                universal_actions.detect_block(device)
+                universal_actions.close_keyboard(device)
+
+                # Wait for first message to send
+                message_sending_icon = device.find(
+                    resourceId=ResourceID.ACTION_ICON, className=ClassName.IMAGE_VIEW
+                )
+                if message_sending_icon.exists():
+                    random_sleep()
+
+                # Random sleep before sending link
+                random_sleep(1, 2)
+
+                # Send the link separately
+                if link_text:
+                    logger.info(
+                        f"Write private message (link part): {link_text}",
+                        extra={"color": f"{Fore.CYAN}"},
+                    )
+                    message_box = device.find(
+                        resourceId=ResourceID.ROW_THREAD_COMPOSER_EDITTEXT,
+                        className=ClassName.EDIT_TEXT,
+                        enabled="true",
+                    )
+                    if message_box.exists():
+                        message_box.set_text(link_text, Mode.PASTE if args.dont_type else Mode.TYPE)
+                        send_button = device.find(
+                            resourceId=ResourceID.ROW_THREAD_COMPOSER_BUTTON_SEND,
+                        )
+                        if send_button.exists():
+                            send_button.click()
+                            universal_actions.detect_block(device)
+                            universal_actions.close_keyboard(device)
+
+                            # Wait for link to send
+                            message_sending_icon = device.find(
+                                resourceId=ResourceID.ACTION_ICON, className=ClassName.IMAGE_VIEW
+                            )
+                            if message_sending_icon.exists():
+                                random_sleep()
+
+                            if not message_sending_icon.exists():
+                                logger.info("PM send succeed (split message).", extra={"color": f"{Fore.GREEN}"})
+                                session_state.totalPm += 1
+                                pm_confirmed = True
+                            else:
+                                logger.warning("Failed to check if link send succeed.")
+                                pm_confirmed = False
+                        else:
+                            logger.warning("Can't find SEND button for link!")
+                            pm_confirmed = False
+                    else:
+                        logger.warning("Can't find message box for link!")
+                        pm_confirmed = False
+                else:
+                    logger.info("PM send succeed (text only).", extra={"color": f"{Fore.GREEN}"})
+                    session_state.totalPm += 1
+                    pm_confirmed = True
+
+                logger.info("Go back to profile view.")
+                device.back()
+                return pm_confirmed
             else:
-                logger.warning("Failed to check if PM send succeed.")
-                pm_confirmed = False
-            logger.info("Go back to profile view.")
-            device.back()
-            return pm_confirmed
+                logger.warning("Can't find SEND button!")
+                universal_actions.close_keyboard(device)
+                device.back()
+                return False
         else:
-            logger.warning("Can't find SEND button!")
-            universal_actions.close_keyboard(device)
-            device.back()
-            return False
+            # No Instagram link, send message normally
+            logger.info(
+                f"Write private message: {message.replace(nl, nlv)}",
+                extra={"color": f"{Fore.CYAN}"},
+            )
+            message_box.set_text(message, Mode.PASTE if args.dont_type else Mode.TYPE)
+            send_button = device.find(
+                resourceId=ResourceID.ROW_THREAD_COMPOSER_BUTTON_SEND,
+            )
+            if send_button.exists():
+                send_button.click()
+                universal_actions.detect_block(device)
+                universal_actions.close_keyboard(device)
+                posted_text = device.find(text=f"{message}")
+                message_sending_icon = device.find(
+                    resourceId=ResourceID.ACTION_ICON, className=ClassName.IMAGE_VIEW
+                )
+                if message_sending_icon.exists():
+                    random_sleep()
+                if posted_text.exists(Timeout.MEDIUM) and not message_sending_icon.exists():
+                    logger.info("PM send succeed.", extra={"color": f"{Fore.GREEN}"})
+                    session_state.totalPm += 1
+                    pm_confirmed = True
+                else:
+                    logger.warning("Failed to check if PM send succeed.")
+                    pm_confirmed = False
+                logger.info("Go back to profile view.")
+                device.back()
+                return pm_confirmed
+            else:
+                logger.warning("Can't find SEND button!")
+                universal_actions.close_keyboard(device)
+                device.back()
+                return False
     else:
         logger.info("PM to this user have been limited.")
         universal_actions.close_keyboard(device)

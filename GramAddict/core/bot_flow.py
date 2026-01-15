@@ -338,11 +338,13 @@ def start_bot(**kwargs):
         # print reports
         if telegram_reports_at_end:
             logger.info("Going back to your profile..")
-            profile_view.click_on_avatar()
-            logger.warning("me muero")
-            if profile_view.getFollowingCount() is None:
+            if not profile_view.click_on_avatar():
+                logger.warning("Could not navigate to profile for telegram report, skipping profile refresh.")
+            elif profile_view.getFollowingCount() is None:
                 profile_view.click_on_avatar()
-            account_view.refresh_account()
+                account_view.refresh_account()
+            else:
+                account_view.refresh_account()
             (
                 _,
                 _,

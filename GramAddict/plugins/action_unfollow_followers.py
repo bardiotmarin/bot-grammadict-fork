@@ -292,10 +292,11 @@ class ActionUnfollowFollowers(Plugin):
         checked = {}
         unfollowed_count = 0
         total_unfollows_limit_reached = False
-        posts_end_detector.notify_new_page()
         prev_screen_iterated_followings = []
         while True:
+            posts_end_detector.notify_new_page()
             screen_iterated_followings = []
+            screen_skipped_count = 0
             logger.info("Iterate over visible followings.")
             user_list = device.find(
                 resourceIdMatches=self.ResourceID.USER_LIST_CONTAINER,
@@ -316,6 +317,7 @@ class ActionUnfollowFollowers(Plugin):
 
                 username = user_name_view.get_text()
                 screen_iterated_followings.append(username)
+                posts_end_detector.notify_username_iterated(username)
                 if username not in checked:
                     checked[username] = None
 
@@ -406,6 +408,25 @@ class ActionUnfollowFollowers(Plugin):
                         return
                 else:
                     logger.debug(f"Already checked {username}.")
+                    screen_skipped_count += 1
+
+            # Check if we've reached the end by seeing the same users repeatedly
+            if posts_end_detector.is_the_end():
+                logger.info(
+                    "Detected repeated users, reached end of following list.",
+                    extra={"color": f"{Fore.GREEN}"},
+                )
+                return
+
+            # Check if all users on this screen were already checked
+            if screen_skipped_count == len(screen_iterated_followings) and len(screen_iterated_followings) > 0:
+                logger.info("All followings on this screen already checked.")
+                posts_end_detector.notify_skipped_all()
+                if posts_end_detector.is_skipped_limit_reached():
+                    logger.warning(
+                        "Skipped all users too many times, may be in a loop. Finishing."
+                    )
+                    return
 
             if screen_iterated_followings != prev_screen_iterated_followings:
                 prev_screen_iterated_followings = screen_iterated_followings

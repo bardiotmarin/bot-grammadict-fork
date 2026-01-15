@@ -23,6 +23,7 @@ FILENAME_WHITELIST = "whitelist.txt"
 FILENAME_BLACKLIST = "blacklist.txt"
 FILENAME_COMMENTS = "comments_list.txt"
 FILENAME_MESSAGES = "pm_list.txt"
+FILENAME_SOURCE_POSITIONS = "source_positions.json"
 
 
 class Storage:
@@ -82,6 +83,48 @@ class Storage:
             self.blacklist = []
 
         self.report_path = os.path.join(self.account_path, REPORTS)
+
+        # Load source positions for resume functionality
+        self.source_positions = {}
+        self.source_positions_path = os.path.join(
+            self.account_path, FILENAME_SOURCE_POSITIONS
+        )
+        if os.path.isfile(self.source_positions_path):
+            with open(self.source_positions_path, encoding="utf-8") as json_file:
+                try:
+                    self.source_positions = json.load(json_file)
+                except Exception as e:
+                    logger.warning(f"Could not load source positions: {e}")
+                    self.source_positions = {}
+
+    def get_source_position(self, source: str, job_type: str) -> int:
+        """Get the saved scroll position for a source (number of users already processed)."""
+        key = f"{job_type}:{source}"
+        return self.source_positions.get(key, {}).get("position", 0)
+
+    def save_source_position(self, source: str, job_type: str, position: int) -> None:
+        """Save the scroll position for a source."""
+        key = f"{job_type}:{source}"
+        self.source_positions[key] = {
+            "position": position,
+            "updated": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+        }
+        if self.source_positions_path is not None:
+            with atomic_write(
+                self.source_positions_path, overwrite=True, encoding="utf-8"
+            ) as outfile:
+                json.dump(self.source_positions, outfile, indent=4, sort_keys=False)
+
+    def reset_source_position(self, source: str, job_type: str) -> None:
+        """Reset position when we've reached the end of the list."""
+        key = f"{job_type}:{source}"
+        if key in self.source_positions:
+            del self.source_positions[key]
+            if self.source_positions_path is not None:
+                with atomic_write(
+                    self.source_positions_path, overwrite=True, encoding="utf-8"
+                ) as outfile:
+                    json.dump(self.source_positions, outfile, indent=4, sort_keys=False)
 
     def can_be_reinteract(
         self,
