@@ -720,6 +720,30 @@ def iterate_over_followers(
         )
         return row_search.exists()
 
+    # Resume from saved position - fast scroll to where we left off
+    saved_position = storage.get_source_position(target, current_job)
+    users_scrolled = 0
+    if saved_position > 0:
+        logger.info(
+            f"Resuming from position {saved_position} (previously processed users).",
+            extra={"color": f"{Fore.CYAN}"},
+        )
+        list_view = device.find(
+            resourceId=self.ResourceID.LIST, className=ClassName.LIST_VIEW
+        )
+        if list_view.exists():
+            # Fast scroll (fling) to approximate position
+            flings_needed = saved_position // 10  # ~10 users per screen
+            for i in range(min(flings_needed, 50)):  # Cap at 50 flings
+                list_view.fling(Direction.DOWN)
+                users_scrolled += 10
+            logger.info(
+                f"Fast-scrolled past ~{users_scrolled} users.",
+                extra={"color": f"{Fore.CYAN}"},
+            )
+
+    total_users_processed = users_scrolled
+
     while True:
         logger.info("Iterate over visible followers.")
         screen_iterated_followers = []
@@ -793,6 +817,9 @@ def iterate_over_followers(
                     if element_opened:
                         logger.info("Back to followers list")
                         device.back()
+                        # Save position after each successful interaction
+                        total_users_processed += 1
+                        storage.save_source_position(target, current_job, total_users_processed)
 
         except IndexError:
             logger.info(
@@ -802,6 +829,7 @@ def iterate_over_followers(
 
         if is_myself and scrolled_to_top():
             logger.info("Scrolled to top, finish.", extra={"color": f"{Fore.GREEN}"})
+            storage.reset_source_position(target, current_job)
             return
         elif len(screen_iterated_followers) > 0:
             load_more_button = device.find(
@@ -810,6 +838,8 @@ def iterate_over_followers(
             load_more_button_exists = load_more_button.exists()
 
             if scroll_end_detector.is_the_end():
+                logger.info("Reached end of list, resetting position for next time.")
+                storage.reset_source_position(target, current_job)
                 return
 
             need_swipe = screen_skipped_followers_count == len(
@@ -871,4 +901,5 @@ def iterate_over_followers(
                 "No followers were iterated, finish.",
                 extra={"color": f"{Fore.GREEN}"},
             )
+            storage.reset_source_position(target, current_job)
             return
