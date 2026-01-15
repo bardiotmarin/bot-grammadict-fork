@@ -28,6 +28,12 @@ logger = logging.getLogger(__name__)
 FOLLOWING_REGEX = "^Following|^Requested"
 UNFOLLOW_REGEX = "^Unfollow"
 
+# Instagram following list categories
+FOLLOWING_CATEGORIES = [
+    "Least interacted with",
+    "Most shown in feed",
+]
+
 
 class ActionUnfollowFollowers(Plugin):
     """Handles the functionality of unfollowing your followers"""
@@ -209,6 +215,57 @@ class ActionUnfollowFollowers(Plugin):
         self.state.unfollowed_count += 1
         self.session_state.totalUnfollowed += 1
 
+    def switch_to_category(self, device, category_name: str) -> bool:
+        """Switch to a different following category (e.g., 'Least interacted with', 'Most shown in feed')"""
+        logger.info(f"Attempting to switch to category: {category_name}")
+        
+        # Look for the category on the current screen
+        category_option = device.find(
+            resourceId="com.instagram.android:id/title",
+            text=category_name
+        )
+        
+        if category_option.exists(Timeout.MEDIUM):
+            logger.info(f"Found category '{category_name}', clicking it.")
+            category_option.click()
+            random_sleep(2, 3)
+            
+            # Verify we're in the new list
+            user_list = device.find(
+                resourceIdMatches=self.ResourceID.USER_LIST_CONTAINER,
+            )
+            if user_list.exists(Timeout.LONG):
+                logger.info(f"Successfully switched to '{category_name}' category.")
+                return True
+            else:
+                logger.warning(f"Could not load user list after switching to '{category_name}'.")
+                return False
+        else:
+            logger.debug(f"Category '{category_name}' not found on screen.")
+            return False
+
+    def try_switch_category(self, device, tried_categories: list) -> bool:
+        """Try to switch to an untried category. Returns True if successful."""
+        # First, go back to the main following list to see categories
+        device.back()
+        random_sleep(1, 2)
+        
+        # Navigate back to following to refresh the view
+        if not ProfileView(device).navigateToFollowing():
+            logger.warning("Could not navigate back to following list.")
+            return False
+        
+        random_sleep(2, 3)
+        
+        for category in FOLLOWING_CATEGORIES:
+            if category not in tried_categories:
+                if self.switch_to_category(device, category):
+                    tried_categories.append(category)
+                    return True
+        
+        logger.info("No more categories to try.")
+        return False
+
     def sort_followings_by_date(self, device, newest_to_oldest=False) -> bool:
         sort_button = device.find(
             resourceId=self.ResourceID.SORTING_ENTRY_ROW_OPTION,
@@ -293,6 +350,7 @@ class ActionUnfollowFollowers(Plugin):
         unfollowed_count = 0
         total_unfollows_limit_reached = False
         prev_screen_iterated_followings = []
+        tried_categories = []  # Track which categories we've already tried
         while True:
             posts_end_detector.notify_new_page()
             screen_iterated_followings = []
@@ -416,6 +474,13 @@ class ActionUnfollowFollowers(Plugin):
                     "Detected repeated users, reached end of following list.",
                     extra={"color": f"{Fore.GREEN}"},
                 )
+                # Try switching to a different category before giving up
+                if self.try_switch_category(device, tried_categories):
+                    logger.info("Switched to a new category, continuing unfollow process.")
+                    posts_end_detector.reset()
+                    checked = {}  # Reset checked users for new category
+                    prev_screen_iterated_followings = []
+                    continue
                 return
 
             # Check if all users on this screen were already checked
@@ -424,8 +489,16 @@ class ActionUnfollowFollowers(Plugin):
                 posts_end_detector.notify_skipped_all()
                 if posts_end_detector.is_skipped_limit_reached():
                     logger.warning(
-                        "Skipped all users too many times, may be in a loop. Finishing."
+                        "Skipped all users too many times, may be in a loop."
                     )
+                    # Try switching to a different category before giving up
+                    if self.try_switch_category(device, tried_categories):
+                        logger.info("Switched to a new category, continuing unfollow process.")
+                        posts_end_detector.reset()
+                        checked = {}  # Reset checked users for new category
+                        prev_screen_iterated_followings = []
+                        continue
+                    logger.warning("No more categories to try. Finishing.")
                     return
 
             if screen_iterated_followings != prev_screen_iterated_followings:

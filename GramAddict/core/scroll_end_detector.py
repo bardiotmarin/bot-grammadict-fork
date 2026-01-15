@@ -29,6 +29,12 @@ class ScrollEndDetector:
     def reset_skipped_all(self):
         self.skipped_all = 0
 
+    def reset(self):
+        """Reset all state for a fresh start (e.g., when switching categories)"""
+        self.skipped_all = 0
+        self.skipped_all_fling = 0
+        self.pages = []
+
     def notify_skipped_all(self):
         self.skipped_all += 1
         self.skipped_all_fling += 1
