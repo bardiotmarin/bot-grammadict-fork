@@ -1543,15 +1543,33 @@ class ProfileView(ActionBarView):
             return None, None, None
 
     def _new_ui_profile_button(self) -> bool:
-        """Try to find and click profile button using tab bar child index."""
+        """Try to find and click profile button using resource ID or content description."""
         try:
+            # Method 1: Direct profile_tab resource ID
+            profile_tab = self.device.find(
+                resourceIdMatches=case_insensitive_re(ResourceID.PROFILE_TAB)
+            )
+            if profile_tab.exists(Timeout.SHORT):
+                profile_tab.click(sleep=SleepTime.SHORT)
+                return True
+            
+            # Method 2: Find by content description "Profile"
+            profile_button = self.device.find(
+                descriptionMatches=case_insensitive_re("^Profile$"),
+                classNameMatches=ClassName.BUTTON_OR_FRAME_LAYOUT_REGEX
+            )
+            if profile_button.exists(Timeout.SHORT):
+                profile_button.click(sleep=SleepTime.SHORT)
+                return True
+            
+            # Method 3: Tab bar child index (fallback)
             tab_bar = self.device.find(
                 resourceIdMatches=case_insensitive_re(ResourceID.TAB_BAR),
                 className=ClassName.LINEAR_LAYOUT
             )
             if tab_bar.exists(Timeout.SHORT):
-                # Profile is the last tab (index -1 or last child)
-                profile_button = tab_bar.child(index=-1)
+                # Profile is the last tab (index 4)
+                profile_button = tab_bar.child(index=4)
                 if profile_button.exists(Timeout.SHORT):
                     profile_button.click(sleep=SleepTime.SHORT)
                     return True
