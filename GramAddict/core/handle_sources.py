@@ -795,6 +795,9 @@ def iterate_over_followers(
                     else:
                         can_interact = True
 
+                # Count every user we've seen (whether skipped or interacted)
+                total_users_processed += 1
+
                 if can_interact:
                     logger.info(
                         f"@{username}: interact", extra={"color": f"{Fore.YELLOW}"}
@@ -817,9 +820,9 @@ def iterate_over_followers(
                     if element_opened:
                         logger.info("Back to followers list")
                         device.back()
-                        # Save position after each successful interaction
-                        total_users_processed += 1
-                        storage.save_source_position(target, current_job, total_users_processed)
+
+                # Save position after processing each user (whether interacted or skipped)
+                storage.save_source_position(target, current_job, total_users_processed)
 
         except IndexError:
             logger.info(
