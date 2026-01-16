@@ -144,11 +144,20 @@ class TabBarView:
                 classNameMatches=ClassName.BUTTON_OR_FRAME_LAYOUT_REGEX,
                 descriptionMatches=case_insensitive_re(TabBarText.HOME_CONTENT_DESC),
             )
+            if not button.exists():
+                logger.debug("Home tab not found by description, trying resource ID...")
+                button = self.device.find(
+                    resourceId="com.instagram.android:id/feed_tab",
+                )
         elif tab == TabBarTabs.SEARCH:
             button = self.device.find(
                 classNameMatches=ClassName.BUTTON_OR_FRAME_LAYOUT_REGEX,
                 descriptionMatches=case_insensitive_re(TabBarText.SEARCH_CONTENT_DESC),
             )
+            if not button.exists():
+                button = self.device.find(
+                    resourceId="com.instagram.android:id/search_tab",
+                )
             if not button.exists():
                 logger.debug("Didn't find search in the tab bar...")
                 home_view = self.navigateToHome()
@@ -159,6 +168,10 @@ class TabBarView:
                 classNameMatches=ClassName.BUTTON_OR_FRAME_LAYOUT_REGEX,
                 descriptionMatches=case_insensitive_re(TabBarText.REELS_CONTENT_DESC),
             )
+            if not button.exists():
+                button = self.device.find(
+                    resourceId="com.instagram.android:id/clips_tab",
+                )
         elif tab == TabBarTabs.ORDERS:
             button = self.device.find(
                 classNameMatches=ClassName.BUTTON_OR_FRAME_LAYOUT_REGEX,
@@ -174,12 +187,24 @@ class TabBarView:
                 classNameMatches=ClassName.BUTTON_OR_FRAME_LAYOUT_REGEX,
                 descriptionMatches=case_insensitive_re(TabBarText.PROFILE_CONTENT_DESC),
             )
+            if not button.exists():
+                logger.debug("Profile tab not found by description, trying resource ID...")
+                button = self.device.find(
+                    resourceId="com.instagram.android:id/profile_tab",
+                )
 
         if button is not None and button.exists(Timeout.MEDIUM):
+            logger.debug(f"Found tab {tab_name}, clicking...")
             button.click(sleep=SleepTime.SHORT)
             return
 
         logger.error(f"Didn't find tab {tab_name} in the tab bar...")
+        # Try to save debug info
+        try:
+            tab_bar = self._getTabBar()
+            logger.debug(f"Tab bar exists: {tab_bar.exists()}")
+        except Exception as e:
+            logger.debug(f"Error checking tab bar: {e}")
 
 
 class ActionBarView:
