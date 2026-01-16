@@ -219,11 +219,20 @@ class ActionUnfollowFollowers(Plugin):
         """Switch to a different following category (e.g., 'Least interacted with', 'Most shown in feed')"""
         logger.info(f"Attempting to switch to category: {category_name}")
         
-        # Look for the category on the current screen
+        # The category is a clickable Button with content-desc matching the category name
+        # Structure: Button (container) with content-desc="Most shown in feed"
+        #            └─ TextView (title) with text="Most shown in feed"
         category_option = device.find(
-            resourceId="com.instagram.android:id/title",
-            text=category_name
+            resourceId="com.instagram.android:id/container",
+            descriptionMatches=f"(?i).*{category_name}.*"
         )
+        
+        if not category_option.exists(Timeout.SHORT):
+            # Fallback: try finding by title text
+            category_option = device.find(
+                resourceId="com.instagram.android:id/title",
+                textMatches=f"(?i).*{category_name}.*"
+            )
         
         if category_option.exists(Timeout.MEDIUM):
             logger.info(f"Found category '{category_name}', clicking it.")
