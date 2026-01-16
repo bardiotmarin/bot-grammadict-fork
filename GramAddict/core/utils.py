@@ -449,8 +449,27 @@ def restart_atx_agent(device):
             logger.error(f"Failed to restart atx-agent: {result.stderr}")
         else:
             logger.info("atx-agent restarted successfully.")
+            # Wait for uiautomator2 to be fully ready
+            logger.info("Waiting for uiautomator2 to initialize...")
+            _warmup_uiautomator(device)
     except subprocess.CalledProcessError as e:
         logger.error(f"Error occurred while restarting atx-agent: {e}")
+
+
+def _warmup_uiautomator(device, max_retries=5):
+    """Warm up uiautomator2 by doing a simple operation until it's ready."""
+    from time import sleep as time_sleep
+    for attempt in range(max_retries):
+        try:
+            # Try to dump hierarchy - this forces uiautomator to start
+            device.deviceV2.dump_hierarchy()
+            logger.info("uiautomator2 is ready.")
+            return True
+        except Exception as e:
+            logger.debug(f"uiautomator2 warmup attempt {attempt + 1}/{max_retries}: {e}")
+            time_sleep(3)
+    logger.warning("uiautomator2 may not be fully ready, continuing anyway...")
+    return False
 
 
 def _restore_keyboard(device):
