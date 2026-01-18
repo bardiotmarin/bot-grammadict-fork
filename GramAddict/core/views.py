@@ -140,6 +140,7 @@ class TabBarView:
         UniversalActions.close_keyboard(self.device)
 
         if tab == TabBarTabs.HOME:
+            # Try multiple methods for HOME tab
             button = self.device.find(
                 classNameMatches=ClassName.BUTTON_OR_FRAME_LAYOUT_REGEX,
                 descriptionMatches=case_insensitive_re(TabBarText.HOME_CONTENT_DESC),
@@ -155,6 +156,16 @@ class TabBarView:
                 button = self.device.find(
                     resourceIdMatches=case_insensitive_re(ResourceID.FEED_TAB),
                 )
+            # Last resort - click tab bar child at index 0
+            if not button.exists():
+                logger.debug("Home tab still not found, trying tab bar child index 0...")
+                try:
+                    tab_bar = self._getTabBar()
+                    if tab_bar.exists(Timeout.SHORT):
+                        button = tab_bar.child(index=0)
+                except Exception as e:
+                    logger.debug(f"Tab bar child access failed: {str(e)}")
+                    
         elif tab == TabBarTabs.SEARCH:
             button = self.device.find(
                 classNameMatches=ClassName.BUTTON_OR_FRAME_LAYOUT_REGEX,
@@ -189,6 +200,7 @@ class TabBarView:
                 descriptionMatches=case_insensitive_re(TabBarText.ACTIVITY_CONTENT_DESC),
             )
         elif tab == TabBarTabs.PROFILE:
+            # Multiple strategies for PROFILE tab
             button = self.device.find(
                 classNameMatches=ClassName.BUTTON_OR_FRAME_LAYOUT_REGEX,
                 descriptionMatches=case_insensitive_re(TabBarText.PROFILE_CONTENT_DESC),
@@ -204,6 +216,15 @@ class TabBarView:
                 button = self.device.find(
                     resourceIdMatches=case_insensitive_re(ResourceID.PROFILE_TAB),
                 )
+            # Last resort - click tab bar child at index 4 (profile is last tab)
+            if not button.exists():
+                logger.debug("Profile tab still not found, trying tab bar child index 4...")
+                try:
+                    tab_bar = self._getTabBar()
+                    if tab_bar.exists(Timeout.SHORT):
+                        button = tab_bar.child(index=4)
+                except Exception as e:
+                    logger.debug(f"Tab bar child access failed: {str(e)}")
 
         if button is not None and button.exists(Timeout.MEDIUM):
             logger.debug(f"Found tab {tab_name}, clicking...")
@@ -2218,7 +2239,7 @@ class UniversalActions:
             textMatches=case_insensitive_re("Force reset password icon"),
         )
         if serius_block.exists():
-            raise ActionBlockedError("Serius block detected :(")]
+            raise ActionBlockedError("Serius block detected :("])
         block_dialog = device.find(
             resourceIdMatches=ResourceID.BLOCK_POPUP,
         )
