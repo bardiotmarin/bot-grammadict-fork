@@ -1,0 +1,195 @@
+# ============================================================================
+# GramAddict Configuration - HOTFIX FOR INSTAGRAM 412.0.0
+# XPath-based selectors for profile element detection
+# Date: 2026-01-18 17:15
+# ============================================================================
+
+username: m4rin_music
+device: 127.0.0.1:21523
+app-id: com.instagram.android
+allow-untested-ig-version: false
+screen-sleep: true
+debug: true
+
+# ============================================================================
+# PROFILE ELEMENT DETECTION (FIXED FOR IG 412)
+# ============================================================================
+# Using XPath instead of CSS classes (IG 412 breaks CSS selectors)
+# These selectors work across IG versions by targeting text content
+profile-followers-text-xpath: "//header//span[contains(text(), 'follower')]"
+profile-following-text-xpath: "//header//span[contains(text(), 'following')]"
+profile-posts-text-xpath: "//header//span[contains(text(), 'post')]"
+
+# Fallback CSS selectors (for older IG versions compatibility)
+profile-followers-selector: "//span[@class='html-span']"
+profile-following-selector: "//span[@class='html-span']"
+profile-posts-selector: "//span[@class='html-span']"
+
+# ============================================================================
+# WORKING HOURS - 4H/DAY (ULTRA-SAFE FOR IG 412)
+# ============================================================================
+working-hours:
+  - "08:00-09:30"   # 1.5h morning
+  - "14:00-15:30"   # 1.5h afternoon
+  - "20:00-21:30"   # 1.5h evening
+
+scheduler: true
+repeat: 120-180
+time-delta: 45-60    # INCREASED (was 30-45s)
+
+# ============================================================================
+# INTERACTIONS - ULTRA-REDUCED (IG 412 DETECTION)
+# ============================================================================
+interactions-count: 25-40     # (WAS: 40-80)
+total-successful-interactions-limit: 70-100    # (WAS: 100-150)
+total-interactions-limit: 100-140              # (WAS: 140-200)
+
+# ============================================================================
+# LIKES
+# ============================================================================
+likes-count: 2-3              # (WAS: 3-7)
+like-delay: 3-4
+total-likes-limit: 50-70      # (WAS: 80-120)
+likes-percentage: 60          # (WAS: 80)
+
+# ============================================================================
+# FOLLOWS (MINIMAL)
+# ============================================================================
+follows-count: 0-1
+follow-delay: 4-5
+total-follows-limit: 2-4      # (WAS: 5-10)
+follow-percentage: 2-4        # (WAS: 5-8)
+
+# ============================================================================
+# UNFOLLOWS (DISABLED)
+# ============================================================================
+unfollows-count: 0
+unfollow-delay: 60
+total-unfollows-limit: 0
+
+# ============================================================================
+# COMMENTS (MINIMAL - HIGH DETECTION RISK)
+# ============================================================================
+comments-count: 0             # (WAS: 1-2)
+comment-delay: 5-10
+total-comments-limit: 20-30   # (WAS: 50-80)
+comment-percentage: 5-10      # (WAS: 20-40)
+
+# ============================================================================
+# STORIES (REDUCED)
+# ============================================================================
+story-watches-count: 0-1
+watch-video-time: 5-10
+watch-photo-time: 2-3
+total-watches-limit: 30-50    # (WAS: 60-90)
+
+# ============================================================================
+# PRIVATE MESSAGES (DISABLED)
+# ============================================================================
+pm-percentage: 0
+pm-delay: 10-15
+
+# ============================================================================
+# INTERACTION TARGETS
+# ============================================================================
+blogger:
+  - blondish
+  - ghayathdakroub
+  - cassius
+  - chloecaillet
+  - edbanger
+  - yakazur
+  - diplo
+  - realblackcoffee
+  - rampa_keinemusik
+  - _recondite_
+  - andmeandyou
+  - hugeelthug
+  - tafariworld
+  - moblackrecord
+  - mattilo
+  - peppe_citarella
+  - ravens.dj
+  - robertfalcon
+
+blogger-followers: ${blogger}
+blogger-following: ${blogger}
+blogger-post-likers: ${blogger}
+
+hashtag-likers-top:
+  - dj
+  - afrohouse
+  - techno
+  - housemusic
+  - techhouse
+  - deephouse
+  - edm
+  - dance
+  - electronicmusic
+
+hashtag-likers-recent: ${hashtag-likers-top}
+hashtag-posts-top: ${hashtag-likers-top}
+hashtag-posts-recent: ${hashtag-likers-top}
+
+locations:
+  - "Pacha Ibiza"
+  - "Berghain Berlin"
+  - "Amnesia Ibiza"
+  - "DC10 Ibiza"
+  - "Rex Club Paris"
+
+# ============================================================================
+# ANTI-DETECTION / SAFETY (MAXIMUM)
+# ============================================================================
+speed-multiplier: 0.4         # SLOWEST POSSIBLE
+randomize-actions: true
+randomize-sleep: true
+sleep-percentage: 30          # (WAS: 15)
+
+min-follower-count: 200       # (WAS: 50)
+max-follower-count: 50000     # (WAS: 100000)
+min-following-count: 0
+max-following-count: 30000    # (WAS: 100000)
+
+can-reinteract-after: 72
+delete-interacted-users: true
+
+# ============================================================================
+# FEEDS
+# ============================================================================
+feed-interactions-count: 5-10
+own-feed-interactions: true
+own-feed-likers: false
+
+# ============================================================================
+# UNFOLLOW SETTINGS (DISABLED)
+# ============================================================================
+do-unfollow: false
+unfollow-non-followers: false
+unfollow-any: false
+
+# ============================================================================
+# REPORTING
+# ============================================================================
+telegram-reports: true
+telegram-api-key: YOUR_TELEGRAM_BOT_TOKEN_HERE
+telegram-chat-id: YOUR_CHAT_ID_HERE
+
+# ============================================================================
+# LIMITS & SAFETY
+# ============================================================================
+skipped-list-limit: 5-8
+skipped-posts-limit: 2
+total-crashes-limit: 500
+
+# ============================================================================
+# FLAGS
+# ============================================================================
+do-like: true
+do-follow: true
+do-comment: false             # (WAS: true)
+do-watch-stories: true
+do-unfollow: false
+shuffle-jobs: true
+disable-block-detection: false
+truncate-sources: 1-2
