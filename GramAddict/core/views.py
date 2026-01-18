@@ -1145,7 +1145,7 @@ class AccountView:
             # Now go to profile
             logger.debug("Going to Profile tab...")
             tab_bar.navigateToProfile()
-            random_sleep(1, 2, modulable=False)
+            random_sleep(2, 3, modulable=False)
             
             profile_view = ProfileView(self.device, is_own_profile=True)
             following_count = profile_view.getFollowingCount()
@@ -1165,7 +1165,7 @@ class AccountView:
             
             profile_view = ProfileView(self.device, is_own_profile=True)
             if profile_view.click_on_avatar(max_attempts=3):
-                random_sleep(1, 2, modulable=False)
+                random_sleep(2, 3, modulable=False)
                 following_count = profile_view.getFollowingCount()
                 if following_count is not None:
                     logger.info(f"Successfully navigated to profile via avatar. Following: {following_count}")
@@ -1669,6 +1669,7 @@ class ProfileView(ActionBarView):
                 return True
             logger.debug(f"Profile navigation attempt {attempt + 1}/{max_attempts} failed, pressing back...")
             self.device.back()
+            random_sleep(0.5, 1, modulable=False)
         logger.error(f"Failed to navigate to profile after {max_attempts} attempts")
         return False
 
