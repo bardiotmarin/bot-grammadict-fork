@@ -149,6 +149,12 @@ class TabBarView:
                 button = self.device.find(
                     resourceId="com.instagram.android:id/feed_tab",
                 )
+            # Fallback for Instagram 412+
+            if not button.exists():
+                logger.debug("Home tab not found, trying direct resource match...")
+                button = self.device.find(
+                    resourceIdMatches=case_insensitive_re(ResourceID.FEED_TAB),
+                )
         elif tab == TabBarTabs.SEARCH:
             button = self.device.find(
                 classNameMatches=ClassName.BUTTON_OR_FRAME_LAYOUT_REGEX,
@@ -191,6 +197,12 @@ class TabBarView:
                 logger.debug("Profile tab not found by description, trying resource ID...")
                 button = self.device.find(
                     resourceId="com.instagram.android:id/profile_tab",
+                )
+            # Fallback for Instagram 412+
+            if not button.exists():
+                logger.debug("Profile tab not found, trying resource match...")
+                button = self.device.find(
+                    resourceIdMatches=case_insensitive_re(ResourceID.PROFILE_TAB),
                 )
 
         if button is not None and button.exists(Timeout.MEDIUM):
@@ -1099,31 +1111,49 @@ class AccountView:
 
     def navigate_to_main_account(self):
         logger.debug("Navigating to main account...")
-
-        # First ensure we're on the home screen to avoid clicking wrong avatars
-        tab_bar = TabBarView(self.device)
-        tab_bar.navigateToHome()
-
-        # Now try using the tab bar to navigate to profile
-        profile_view = tab_bar.navigateToProfile()
-
-        # Check if we successfully navigated to profile
-        if profile_view.getFollowingCount() is not None:
-            logger.info("Successfully navigated to profile")
-            return
-
-        # If tab bar navigation failed, try avatar method from home
-        logger.debug("Tab bar navigation failed, trying avatar method...")
-        tab_bar.navigateToHome()  # Ensure we're on home before clicking avatar
-        profile_view.click_on_avatar()
-        if profile_view.getFollowingCount() is None:
-            profile_view.click_on_avatar()
-
-        # If still not on profile, something is wrong
-        if profile_view.getFollowingCount() is None:
-            logger.error("Failed to navigate to profile view")
-            return False
-        return True
+        logger.info("Attempting to navigate to profile...")
+        
+        # Try TabBarView navigation first
+        try:
+            tab_bar = TabBarView(self.device)
+            # Go to home first to ensure we're on main screen
+            logger.debug("Going to Home tab...")
+            tab_bar.navigateToHome()
+            random_sleep(1, 2, modulable=False)
+            
+            # Now go to profile
+            logger.debug("Going to Profile tab...")
+            tab_bar.navigateToProfile()
+            random_sleep(1, 2, modulable=False)
+            
+            profile_view = ProfileView(self.device, is_own_profile=True)
+            following_count = profile_view.getFollowingCount()
+            
+            if following_count is not None:
+                logger.info(f"Successfully navigated to profile. Following: {following_count}")
+                return True
+        except Exception as e:
+            logger.debug(f"Tab bar navigation failed: {str(e)}")
+        
+        # Fallback: Click on avatar from home
+        logger.debug("Tab bar navigation failed, trying avatar click method...")
+        try:
+            tab_bar = TabBarView(self.device)
+            tab_bar.navigateToHome()
+            random_sleep(1, 2, modulable=False)
+            
+            profile_view = ProfileView(self.device, is_own_profile=True)
+            if profile_view.click_on_avatar(max_attempts=3):
+                random_sleep(1, 2, modulable=False)
+                following_count = profile_view.getFollowingCount()
+                if following_count is not None:
+                    logger.info(f"Successfully navigated to profile via avatar. Following: {following_count}")
+                    return True
+        except Exception as e:
+            logger.debug(f"Avatar click method failed: {str(e)}")
+        
+        logger.error("Failed to navigate to profile view after all attempts")
+        return False
 
     def changeToUsername(self, username: str):
         action_bar = ProfileView._getActionBarTitleBtn(self)
@@ -2188,7 +2218,7 @@ class UniversalActions:
             textMatches=case_insensitive_re("Force reset password icon"),
         )
         if serius_block.exists():
-            raise ActionBlockedError("Serius block detected :(")
+            raise ActionBlockedError("Serius block detected :(")]
         block_dialog = device.find(
             resourceIdMatches=ResourceID.BLOCK_POPUP,
         )
