@@ -1,7 +1,7 @@
 # ============================================================================
 # GramAddict Configuration - HOTFIX FOR INSTAGRAM 412.0.0
 # XPath-based selectors for profile element detection
-# Date: 2026-01-18 17:15
+# Date: 2026-01-18 17:20
 # ============================================================================
 
 username: m4rin_music
@@ -131,6 +131,7 @@ hashtag-likers-recent: ${hashtag-likers-top}
 hashtag-posts-top: ${hashtag-likers-top}
 hashtag-posts-recent: ${hashtag-likers-top}
 
+# LOCATIONS - Use quoted strings to prevent YAML/CLI parsing issues with dashes
 locations:
   - "Pacha Ibiza"
   - "Berghain Berlin"
