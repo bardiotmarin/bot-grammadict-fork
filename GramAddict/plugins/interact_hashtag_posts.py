@@ -1,5 +1,6 @@
 import logging
 from functools import partial
+import random
 from random import seed
 
 import emoji
@@ -69,6 +70,8 @@ class InteractHashtagPosts(Plugin):
                 else self.args.hashtag_posts_recent
             )
         ]
+        # Mélange la liste de hashtags
+        random.shuffle(sources)
 
         # Start
         for source in sample_sources(sources, self.args.truncate_sources):

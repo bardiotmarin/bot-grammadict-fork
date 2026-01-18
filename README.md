@@ -305,3 +305,10 @@ Thank you to everyone that supports us financially! 🙏 [[Become a backer](http
 ---
 
 > **Disclaimer**<a name="disclaimer" />: This project comes with no guarantee or warranty. You are responsible for whatever happens from using this project. It is possible to get soft or hard banned by using this project if you are not careful.
+
+
+
+add marin
+pip install opencv-python spacy emoji
+python -m spacy download en_core_web_sm
+

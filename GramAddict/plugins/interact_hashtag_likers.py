@@ -1,6 +1,7 @@
 import logging
+import random
 from functools import partial
-from random import seed
+from random import seed 
 
 import emoji
 from colorama import Fore
@@ -70,6 +71,12 @@ class InteractHashtagLikers(Plugin):
                 else self.args.hashtag_likers_recent
             )
         ]
+        # Shuffle the sources list
+        random.shuffle(sources)
+
+        print("Shuffled sources list:")
+        print(sources)
+        
         # Start
         for source in sample_sources(sources, self.args.truncate_sources):
             (
