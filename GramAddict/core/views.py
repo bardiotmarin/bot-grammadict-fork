@@ -1758,14 +1758,50 @@ class ProfileView(ActionBarView):
         return int(value * multiplier)
 
     def _getFollowersTextView(self):
+        """Try to find followers count view with multiple fallback methods"""
+        # Method 1: Primary resource ID
         followers_text_view = self.device.find(
             resourceIdMatches=case_insensitive_re(
                 ResourceID.ROW_PROFILE_HEADER_TEXTVIEW_FOLLOWERS_COUNT
             ),
             className=ClassName.TEXT_VIEW,
         )
-        followers_text_view.wait(Timeout.MEDIUM)
-        return followers_text_view
+        if followers_text_view.exists(Timeout.SHORT):
+            return followers_text_view
+        
+        # Method 2: Try container method for Instagram 412.0.0+
+        logger.debug("Primary follower count method failed, trying container approach...")
+        followers_container = self.device.find(
+            resourceIdMatches=case_insensitive_re(
+                ResourceID.ROW_PROFILE_HEADER_FOLLOWERS_CONTAINER
+            )
+        )
+        if followers_container.exists(Timeout.SHORT):
+            try:
+                # Try to get the text view from the container
+                followers_text = followers_container.child(index=1)
+                if followers_text.exists(Timeout.SHORT):
+                    return followers_text
+            except Exception as e:
+                logger.debug(f"Container method failed: {e}")
+        
+        # Method 3: Search for any text view containing a number
+        logger.debug("Trying to find followers count by searching for numeric text view...")
+        text_views = self.device.find(className=ClassName.TEXT_VIEW)
+        if text_views.exists(Timeout.SHORT):
+            try:
+                # Look for the first few text views which might contain the count
+                for i in range(5):
+                    tv = text_views.child(index=i)
+                    if tv.exists(Timeout.SHORT):
+                        text = tv.get_text()
+                        if text and text[0].isdigit():  # Check if starts with a digit
+                            return tv
+            except Exception as e:
+                logger.debug(f"Numeric search method failed: {e}")
+        
+        logger.warning("Could not find followers text view with any method")
+        return followers_text_view  # Return original attempt anyway
 
     def getFollowersCount(self) -> Optional[int]:
         followers = None
@@ -1782,14 +1818,56 @@ class ProfileView(ActionBarView):
         return followers
 
     def _getFollowingTextView(self):
+        """Try to find following count view with multiple fallback methods"""
+        # Method 1: Primary resource ID
         following_text_view = self.device.find(
             resourceIdMatches=case_insensitive_re(
                 ResourceID.ROW_PROFILE_HEADER_TEXTVIEW_FOLLOWING_COUNT
             ),
             className=ClassName.TEXT_VIEW,
         )
-        following_text_view.wait(Timeout.MEDIUM)
-        return following_text_view
+        if following_text_view.exists(Timeout.SHORT):
+            return following_text_view
+        
+        # Method 2: Try container method for Instagram 412.0.0+
+        logger.debug("Primary following count method failed, trying container approach...")
+        following_container = self.device.find(
+            resourceIdMatches=case_insensitive_re(
+                ResourceID.ROW_PROFILE_HEADER_FOLLOWING_CONTAINER
+            )
+        )
+        if following_container.exists(Timeout.SHORT):
+            try:
+                # Try to get the text view from the container
+                following_text = following_container.child(index=1)
+                if following_text.exists(Timeout.SHORT):
+                    return following_text
+            except Exception as e:
+                logger.debug(f"Container method failed: {e}")
+        
+        # Method 3: Search for any text view containing a number (skip first 2 as they're posts/followers)
+        logger.debug("Trying to find following count by searching for numeric text view...")
+        text_views = self.device.find(className=ClassName.TEXT_VIEW)
+        if text_views.exists(Timeout.SHORT):
+            try:
+                # Look for text views which might contain the count (skip first 2-3)
+                count = 0
+                for i in range(10):
+                    try:
+                        tv = text_views.child(index=i)
+                        if tv.exists(Timeout.SHORT):
+                            text = tv.get_text()
+                            if text and text[0].isdigit():  # Check if starts with a digit
+                                count += 1
+                                if count == 3:  # Third numeric field is usually "following"
+                                    return tv
+                    except Exception:
+                        continue
+            except Exception as e:
+                logger.debug(f"Numeric search method failed: {e}")
+        
+        logger.warning("Could not find following text view with any method")
+        return following_text_view  # Return original attempt anyway
 
     def getFollowingCount(self) -> Optional[int]:
         following = None
