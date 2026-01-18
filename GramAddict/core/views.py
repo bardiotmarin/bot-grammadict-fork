@@ -2240,7 +2240,7 @@ class UniversalActions:
             textMatches=case_insensitive_re("Force reset password icon"),
         )
         if serius_block.exists():
-            raise ActionBlockedError("Serius block detected :("])
+            raise ActionBlockedError("Serius block detected :(")
         block_dialog = device.find(
             resourceIdMatches=ResourceID.BLOCK_POPUP,
         )
