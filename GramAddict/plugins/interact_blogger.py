@@ -1,6 +1,6 @@
 import logging
 from functools import partial
-from random import seed
+from random import seed, shuffle
 
 from colorama import Style
 
@@ -68,10 +68,13 @@ class InteractBloggerPostLikers(Plugin):
         # Handle sources
         if plugin == "interact-from-file":
             sources = [f for f in self.args.interact_from_file if f.strip()]
+            shuffle(sources)  # Mélange la liste de sources
         elif plugin == "unfollow-from-file":
             sources = [f for f in self.args.unfollow_from_file if f.strip()]
+            shuffle(sources)  # Mélange la liste de sources
         else:
             sources = [s for s in self.args.blogger if s.strip()]
+            shuffle(sources)  # Mélange la liste de sources
 
         for source in sample_sources(sources, self.args.truncate_sources):
             (

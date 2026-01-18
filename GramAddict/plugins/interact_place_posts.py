@@ -1,5 +1,6 @@
 import logging
 from functools import partial
+import random
 from random import seed
 
 from colorama import Style
@@ -68,6 +69,8 @@ class InteractPlacePosts(Plugin):
                 else self.args.place_posts_recent
             )
         ]
+        # Mélange la liste de hashtags
+        random.shuffle(sources)
 
         for source in sample_sources(sources, self.args.truncate_sources):
             (

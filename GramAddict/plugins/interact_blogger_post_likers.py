@@ -1,6 +1,6 @@
 import logging
 from functools import partial
-from random import seed
+from random import seed, shuffle
 
 from colorama import Style
 
@@ -61,6 +61,7 @@ class InteractBloggerPostLikers(Plugin):
 
         # Handle sources
         sources = [s for s in self.args.blogger_post_likers if s.strip()]
+        shuffle(sources)  # Mélange la liste de sources
         for source in sample_sources(sources, self.args.truncate_sources):
             (
                 active_limits_reached,
