@@ -9,3 +9,5 @@ atomicwrites==1.4.0
 spintax==1.0.4
 requests~=2.31.0
 packaging~=20.9
+pytesseract~=0.3.10
+Pillow~=10.0.0
