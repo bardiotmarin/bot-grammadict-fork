@@ -28,6 +28,9 @@ class ResourceID:
         self.CAROUSEL_INDEX_INDICATOR_TEXT_VIEW = (
             f"{APP_ID}:id/carousel_index_indicator_text_view"
         )
+        self.CLIPS_LIKE_BUTTON = f"{APP_ID}:id/like_button"
+        self.CLIPS_COMMENT_BUTTON = f"{APP_ID}:id/comment_button"
+        self.CLIPS_SHARE_BUTTON = f"{APP_ID}:id/direct_share_button"
         self.CLIPS_VIDEO_CONTAINER = f"{APP_ID}:id/clips_video_container"
         self.COLLECTION_ROOT_VIEW = f"{APP_ID}:id/collection_root_view"
         self.COORDINATOR_ROOT_LAYOUT = f"{APP_ID}:id/coordinator_root_layout"
@@ -60,7 +63,7 @@ class ResourceID:
         self.INDICATOR = f"{APP_ID}:id/indicator"
         self.LANGUAGE_LIST_LOCALE = f"{APP_ID}:id/language_locale_list"
         self.LAYOUT_COMMENT_THREAD_EDITTEXT = (
-            f"{APP_ID}:id/layout_comment_thread_edittext"
+            f"{APP_ID}:id/layout_comment_thread_edittext|{APP_ID}:id/layout_comment_thread_edittext_multiline"
         )
         self.LAYOUT_COMMENT_THREAD_POST_BUTTON_CLICK_AREA = (
             f"{APP_ID}:id/layout_comment_thread_post_button_click_area"
@@ -69,6 +72,9 @@ class ResourceID:
         self.LIVE_BADGE_VIEW = f"{APP_ID}:id/live_badge_view"
         self.MEDIA_GROUP = f"{APP_ID}:id/media_group"
         self.MEDIA_CONTENT_LOCATION = f"{APP_ID}:id/media_content_location"
+        self.MEDIA_SET_ROW_CONTENT_IDENTIFIER = (
+            f"{APP_ID}:id/media_set_row_content_identifier"
+        )
         self.MENU_SETTINGS_ROW = f"{APP_ID}:id/menu_settings_row"
         self.MENU_OPTION_TEXT = f"{APP_ID}:id/menu_option_text"
         self.NEGATIVE_BUTTON = f"{APP_ID}:id/negative_button"
@@ -96,7 +102,16 @@ class ResourceID:
         self.REEL_RING = f"{APP_ID}:id/reel_ring"
         self.REEL_VIEWER_IMAGE_VIEW = f"{APP_ID}:id/reel_viewer_image_view"
         self.REEL_VIEWER_MEDIA_CONTAINER = f"{APP_ID}:id/reel_viewer_media_container"
+        self.REEL_REACTION_TOOLBAR = f"{APP_ID}:id/reel_reaction_toolbar"
+        self.REEL_VIEWER_MESSAGE_COMPOSER = f"{APP_ID}:id/message_composer_container"
+        self.REEL_VIEWER_MESSAGE_COMPOSER_TEXT = (
+            f"{APP_ID}:id/reel_viewer_message_composer_text"
+        )
+        self.ROW_THREAD_COMPOSER_SEND_BUTTON = (
+            f"{APP_ID}:id/row_thread_composer_send_button_background"
+        )
         self.REEL_VIEWER_TIMESTAMP = f"{APP_ID}:id/reel_viewer_timestamp"
+        self.STORY_REACTIONS_EMOJI = f"{APP_ID}:id/story_reactions_emoji"
         self.REEL_VIEWER_TITLE = f"{APP_ID}:id/reel_viewer_title"
         self.RESTRICTED_ACCOUNT_TITLE = f"{APP_ID}:id/restricted_account_title"
         self.ROW_COMMENT_SUB_ITEMS_BAR = f"{APP_ID}:id/row_comment_sub_items_bar"
@@ -139,16 +154,16 @@ class ResourceID:
         self.ROW_PROFILE_HEADER_FOLLOWING_CONTAINER = f"{APP_ID}:id/row_profile_header_following_container|{APP_ID}:id/row_profile_header_container_following"
         self.ROW_PROFILE_HEADER_IMAGEVIEW = f"{APP_ID}:id/row_profile_header_imageview"
         self.ROW_PROFILE_HEADER_TEXTVIEW_FOLLOWERS_COUNT = (
-            f"{APP_ID}:id/row_profile_header_textview_followers_count"
+            f"{APP_ID}:id/row_profile_header_textview_followers_count|{APP_ID}:id/profile_header_familiar_followers_value"
         )
         self.ROW_PROFILE_HEADER_TEXTVIEW_POST_CONTAINER = (
             f"{APP_ID}:id/row_profile_header_post_count_container"
         )
         self.ROW_PROFILE_HEADER_TEXTVIEW_FOLLOWING_COUNT = (
-            f"{APP_ID}:id/row_profile_header_textview_following_count"
+            f"{APP_ID}:id/row_profile_header_textview_following_count|{APP_ID}:id/profile_header_familiar_following_value"
         )
         self.ROW_PROFILE_HEADER_TEXTVIEW_POST_COUNT = (
-            f"{APP_ID}:id/row_profile_header_textview_post_count"
+            f"{APP_ID}:id/row_profile_header_textview_post_count|{APP_ID}:id/profile_header_familiar_post_count_value"
         )
         self.ROW_SEARCH_EDIT_TEXT = f"{APP_ID}:id/row_search_edit_text"
         self.ROW_SEARCH_USER_USERNAME = f"{APP_ID}:id/row_search_user_username"
@@ -157,6 +172,7 @@ class ResourceID:
             f"{APP_ID}:id/row_thread_composer_button_send"
         )
         self.ROW_THREAD_COMPOSER_EDITTEXT = f"{APP_ID}:id/row_thread_composer_edittext"
+        self.ROW_FOLLOW_BUTTON = f"{APP_ID}:id/row_follow_button"
         self.ROW_USER_CONTAINER_BASE = f"{APP_ID}:id/row_user_container_base"
         self.ROW_USER_PRIMARY_NAME = f"{APP_ID}:id/row_user_primary_name"
         self.ROW_USER_TEXTVIEW = f"{APP_ID}:id/row_user_textview"
@@ -175,6 +191,9 @@ class ResourceID:
         self.TAB_BAR = f"{APP_ID}:id/tab_bar"
         self.PROFILE_TAB = f"{APP_ID}:id/profile_tab"
         self.FEED_TAB = f"{APP_ID}:id/feed_tab"
+        self.SEARCH_TAB = f"{APP_ID}:id/search_tab"
+        self.ACTIVITY_TAB = f"{APP_ID}:id/direct_tab" # Using direct_tab for Activity/Message
+        self.REELS_TAB = f"{APP_ID}:id/clips_tab"
         self.TAB_BUTTON_NAME_TEXT = f"{APP_ID}:id/tab_button_name_text"
         self.TAB_BUTTON_FALLBACK_ICON = f"{APP_ID}:id/tab_button_fallback_icon"
         self.TIMER = f"{APP_ID}:id/timer"
@@ -194,7 +213,7 @@ class ResourceID:
             f"{self.VIDEO_CONTAINER}|{self.CLIPS_VIDEO_CONTAINER}"
         )
         self.CAROUSEL_AND_MEDIA_GROUP = f"{self.CAROUSEL_IMAGE}|{self.MEDIA_GROUP}|{self.CAROUSEL_IMAGE_MEDIA_GROUP}|{self.CAROUSEL_VIDEO_MEDIA_GROUP}"
-        self.MEDIA_CONTAINER = f"{self.ZOOMABLE_VIEW_CONTAINER}|{self.CAROUSEL_MEDIA_GROUP}|{self.SPONSORED_CONTENT_SERVER_RENDERED_ROOT}|{self.COLLECTION_ROOT_VIEW}|{self.MEDIA_CONTENT_LOCATION}"
+        self.MEDIA_CONTAINER = f"{self.ZOOMABLE_VIEW_CONTAINER}|{self.CAROUSEL_MEDIA_GROUP}|{self.SPONSORED_CONTENT_SERVER_RENDERED_ROOT}|{self.COLLECTION_ROOT_VIEW}|{self.MEDIA_CONTENT_LOCATION}|{self.CLIPS_VIDEO_CONTAINER}|{self.REEL_VIEWER_MEDIA_CONTAINER}"
         self.GAP_VIEW_AND_FOOTER_SPACE = f"{self.GAP_VIEW}|{self.FOOTER_SPACE}"
         self.BLOCK_POPUP = f"{self.DIALOG_CONTAINER}|{self.DIALOG_ROOT_VIEW}"
 
@@ -218,15 +237,15 @@ class ResourceID:
 class TabBarText:
     ACTIVITY_CONTENT_DESC = "Activity"
     EFFECTS_CONTENT_DESC = "Effects"
-    HOME_CONTENT_DESC = "Home"
+    HOME_CONTENT_DESC = ".*Home.*"
     IGTV_CONTENT_DESC = "IGTV"
     ORDERS_CONTENT_DESC = "Orders"
     PHOTOS_OF_YOU_CONTENT_DESC = "Photos of You"
     POSTS_CONTENT_DESC = "Grid View"
-    PROFILE_CONTENT_DESC = "Profile"
+    PROFILE_CONTENT_DESC = ".*Profile.*"
     RECENT_CONTENT_DESC = "Recent"
     REELS_CONTENT_DESC = "Reels"
-    SEARCH_CONTENT_DESC = "Search and explore"
+    SEARCH_CONTENT_DESC = ".*Search.*"
 
 
 class ClassName:
@@ -245,3 +264,23 @@ class ClassName:
     VIEW = "android.view.View"
     VIEW_GROUP = "android.view.ViewGroup"
     VIEW_PAGER = "androidx.viewpager.widget.ViewPager"
+
+
+class ContentDescription:
+    # Tab Bar
+    HOME = ["Home", "Accueil", "Inicio", "Haus", "Feed", "Fil d'actualité"]
+    SEARCH = ["Search", "Rechercher", "Buscar", "Suche", "Entdecken"]
+    REELS = ["Reels"]
+    SHOP = ["Shop", "Boutique", "Tienda", "Einkaufen"]
+    ACTIVITY = ["Activity", "Activité", "Actividad", "Aktivität"]
+    PROFILE = ["Profile", "Profil", "Perfil"]
+    
+    # Actions
+    LIKE = ["Like", "J'aime", "Gefällt mir", "Me gusta"]
+    UNLIKE = ["Unlike", "Je n'aime plus", "Gefällt mir nicht mehr", "No me gusta"]
+    COMMENT = ["Comment", "Commenter", "Kommentieren", "Comentar"]
+    FOLLOW = ["Follow", "S'abonner", "Folgen", "Seguir"]
+    UNFOLLOW = ["Following", "Abonné(e)", "Gefolgt"]
+    MESSAGE = ["Message", "Nachricht", "Enviar mensaje"]
+    MORE_OPTIONS = ["More options", "Plus d'options", "Mehr Optionen", "Más opciones"]
+

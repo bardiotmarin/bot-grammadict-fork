@@ -13,6 +13,7 @@ from uiautomator2.exceptions import UiObjectNotFoundError
 from GramAddict.core.device_facade import DeviceFacade
 from GramAddict.core.report import print_full_report
 from GramAddict.core.utils import (
+    EmptyList,
     check_if_crash_popup_is_there,
     close_instagram,
     open_instagram,
@@ -78,6 +79,7 @@ def run_safely(device, device_id, sessions, session_state, screen_record, config
                 HTTPException,
                 timeout,
                 UiObjectNotFoundError,
+                EmptyList,
             ):
                 restart(
                     device,

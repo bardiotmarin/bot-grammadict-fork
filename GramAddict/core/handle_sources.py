@@ -16,6 +16,7 @@ from GramAddict.core.navigation import (
 from GramAddict.core.resources import ClassName
 from GramAddict.core.storage import FollowingStatus
 from GramAddict.core.utils import (
+    EmptyList,
     get_value,
     inspect_current_view,
     random_choice,
@@ -154,6 +155,11 @@ def handle_blogger_from_file(
     limit_reached = False
 
     filename: str = os.path.join(storage.account_path, parameter_passed.split(" ")[0])
+    if not os.path.isfile(filename) and hasattr(self.args, 'config') and self.args.config:
+        alt_filename = os.path.join(os.path.dirname(self.args.config), parameter_passed.split(" ")[0])
+        if os.path.isfile(alt_filename):
+            filename = alt_filename
+            
     try:
         amount_of_users = get_value(parameter_passed.split(" ")[1], None, 10)
     except IndexError:
@@ -285,6 +291,55 @@ def do_unfollow_from_list(device, username, on_following_list):
         return FollowingView(device).do_unfollow_from_list(username)
 
 
+def _like_and_comment_current_post(
+    self, device, session_state, interaction, post_view_list, media_type=None
+):
+    """Like, then optionally comment, the post currently on screen."""
+    opened_post_view = OpenedPostView(device)
+    already_liked, _ = opened_post_view._is_post_liked()
+
+    if already_liked:
+        logger.info("Post already liked.", extra={"color": f"{Fore.CYAN}"})
+    elif session_state.check_limit(limit_type=session_state.Limit.LIKES, output=False):
+        logger.info("Like limit reached, skipping the like on this post.")
+    else:
+        post_view_list._like_in_post_view(LikeMode.SINGLE_CLICK)
+        liked = post_view_list._check_if_liked()
+        if not liked:
+            post_view_list._like_in_post_view(LikeMode.DOUBLE_CLICK)
+            liked = post_view_list._check_if_liked()
+        if liked:
+            session_state.totalLikes += 1
+            logger.info("Post liked.", extra={"color": f"{Fore.GREEN}"})
+        else:
+            logger.warning("Could not like this post.")
+
+    keywords = getattr(interaction, "keywords", {}) or {}
+    comment_percentage = keywords.get("comment_percentage")
+    if comment_percentage is None:
+        comment_percentage = get_value(self.args.comment_percentage, None, 0)
+
+    if comment_percentage and comment_percentage > 0:
+        from GramAddict.core.interaction import _comment
+        from GramAddict.core.views import MediaType
+
+        my_username = keywords.get("my_username") or getattr(session_state, "my_username", "")
+        try:
+            comment_done = _comment(
+                device,
+                my_username,
+                comment_percentage,
+                self.args,
+                session_state,
+                media_type or MediaType.PHOTO,
+            )
+            if comment_done:
+                session_state.totalComments += 1
+                logger.info("Post commented.", extra={"color": f"{Fore.GREEN}"})
+        except Exception as e:
+            logger.debug(f"Failed to comment on this post: {e}")
+
+
 def handle_likers(
     self,
     device,
@@ -330,7 +385,13 @@ def handle_likers(
             and profile_filter.is_num_likers_in_range(number_of_likers)
             and number_of_likers != 1
         ):
-            PostsViewList(device).open_likers_container()
+            # Interact with the post itself before working through its likers.
+            _like_and_comment_current_post(
+                self, device, session_state, interaction, PostsViewList(device)
+            )
+            if not PostsViewList(device).open_likers_container():
+                PostsViewList(device).swipe_to_fit_posts(SwipeTo.NEXT_POST)
+                continue
         else:
             PostsViewList(device).swipe_to_fit_posts(SwipeTo.NEXT_POST)
             continue
@@ -350,7 +411,12 @@ def handle_likers(
             if user_container is None:
                 logger.warning("Likers list didn't load :(")
                 return
-            row_height, n_users = inspect_current_view(user_container)
+            try:
+                row_height, n_users = inspect_current_view(user_container)
+            except EmptyList:
+                logger.warning("The likers list is empty, moving on to the next post.")
+                device.back()
+                break
             try:
                 for item in user_container:
                     cur_row_height = item.get_height()
@@ -597,17 +663,25 @@ def handle_posts(
                                 post_view_list._like_in_post_view(LikeMode.SINGLE_CLICK)
                             else:
                                 post_view_list._like_in_post_view(LikeMode.DOUBLE_CLICK)
-                            UniversalActions.detect_block(device)
                             liked = post_view_list._check_if_liked()
                             if not liked:
                                 post_view_list._like_in_post_view(
                                     LikeMode.SINGLE_CLICK, already_watched=True
                                 )
-                                UniversalActions.detect_block(device)
                                 liked = post_view_list._check_if_liked()
                             if liked:
                                 session_state.totalLikes += 1
                                 if current_job == "feed":
+                                    comment_pct = interaction.keywords.get("comment_percentage", 0) if interaction else 0
+                                    if comment_pct > 0:
+                                        my_username = interaction.keywords.get("my_username", "") if interaction else ""
+                                        from GramAddict.core.interaction import _comment
+                                        from GramAddict.core.views import MediaType
+                                        try:
+                                            _comment(device, my_username, comment_pct, self.args, session_state, MediaType.PHOTO)
+                                        except Exception as e:
+                                            logger.debug(f"Failed to comment on feed post: {e}")
+
                                     count += 1
                                     logger.info(
                                         f"Interacted feed bloggers: {count}/{count_feed_limit}"
@@ -656,9 +730,7 @@ def handle_posts(
         if likes_failed == 10:
             logger.warning("You failed to do 10 likes! Soft-ban?!")
             return
-        post_view_list.swipe_to_fit_posts(SwipeTo.HALF_PHOTO)
         post_view_list.swipe_to_fit_posts(SwipeTo.NEXT_POST)
-    TabBarView(device).navigateToProfile()
 
 
 def handle_followers(
@@ -718,7 +790,18 @@ def iterate_over_followers(
             resourceId=self.ResourceID.ROW_SEARCH_EDIT_TEXT,
             className=ClassName.EDIT_TEXT,
         )
-        return row_search.exists()
+        if row_search.exists():
+            return True
+            
+        from GramAddict.core.resources import ContentDescription as Tab
+        from GramAddict.core.views import case_insensitive_re
+        
+        fallback_desc = device.find(className=ClassName.EDIT_TEXT, descriptionMatches=case_insensitive_re(Tab.SEARCH))
+        if fallback_desc.exists():
+            return True
+            
+        fallback_text = device.find(className=ClassName.EDIT_TEXT, textMatches=case_insensitive_re(Tab.SEARCH))
+        return fallback_text.exists()
 
     # Resume from saved position - fast scroll to where we left off
     saved_position = storage.get_source_position(target, current_job)
@@ -731,6 +814,8 @@ def iterate_over_followers(
         list_view = device.find(
             resourceId=self.ResourceID.LIST, className=ClassName.LIST_VIEW
         )
+        if not list_view.exists():
+            list_view = device.find(resourceId=self.ResourceID.LIST)
         if list_view.exists():
             # Fast scroll (fling) to approximate position
             flings_needed = saved_position // 10  # ~10 users per screen
@@ -755,7 +840,11 @@ def iterate_over_followers(
         row_height, n_users = inspect_current_view(user_list)
         try:
             for item in user_list:
-                cur_row_height = item.get_height()
+                try:
+                    cur_row_height = item.get_height()
+                except Exception:
+                    continue
+
                 if cur_row_height < row_height:
                     continue
                 user_info_view = item.child(index=1)
@@ -848,18 +937,20 @@ def iterate_over_followers(
             need_swipe = screen_skipped_followers_count == len(
                 screen_iterated_followers
             )
+            # IG >=412 renders the followers sheet as a RecyclerView (same
+            # "android:id/list" resource id, different class from the legacy
+            # ListView) — matching on className here finds nothing to scroll.
             list_view = device.find(
                 resourceId=self.ResourceID.LIST, className=ClassName.LIST_VIEW
             )
+            if not list_view.exists():
+                list_view = device.find(resourceId=self.ResourceID.LIST)
             if not list_view.exists():
                 logger.error(
                     "Cannot find the list of followers. Trying to press back again."
                 )
                 device.back()
-                list_view = device.find(
-                    resourceId=self.ResourceID.LIST,
-                    className=ClassName.LIST_VIEW,
-                )
+                list_view = device.find(resourceId=self.ResourceID.LIST)
 
             if is_myself:
                 logger.info("Need to scroll now", extra={"color": f"{Fore.GREEN}"})

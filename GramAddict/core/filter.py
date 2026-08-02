@@ -424,8 +424,7 @@ class Filter:
             )
 
         cleaned_biography = " ".join(
-            emoji.get_emoji_regexp()
-            .sub("", profile_data.biography.replace("\n", ""))
+            emoji.replace_emoji(profile_data.biography.replace("\n", ""), replace="")
             .lower()
             .split()
         )

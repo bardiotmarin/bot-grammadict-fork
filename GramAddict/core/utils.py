@@ -240,13 +240,19 @@ def open_instagram(device):
 
     def call_ig():
         try:
-            return device.deviceV2.app_start(app_id, use_monkey=True)
-        except uiautomator2.exceptions.BaseError as exc:
+            current_pkg = device.deviceV2.app_current().get("package", "")
+            if current_pkg != app_id:
+                cmd = f"adb -s {device.device_id} shell am start -n {app_id}/.activity.MainTabActivity"
+                logger.debug(f"Launching app with command: {cmd}")
+                subprocess.run(cmd, shell=True, check=True)
+                random_sleep(3, 4, modulable=False)
+            return None
+        except Exception as exc:
             return exc
 
     err = call_ig()
     if err:
-        logger.error(err)
+        logger.error(f"Failed to start app: {err}")
         return False
     else:
         logger.debug("Instagram called successfully.")
@@ -269,13 +275,53 @@ def open_instagram(device):
 
     logger.info("Ready for botting!🤫", extra={"color": f"{Style.BRIGHT}{Fore.GREEN}"})
 
+    # Wait until Instagram finishes splash screen and main UI loads
+    logger.info("Waiting for splash screen to complete...")
+    for _ in range(10):
+        if check_if_crash_popup_is_there(device):
+            call_ig()
+            continue
+        try:
+            xml = device.deviceV2.dump_hierarchy()
+            if "feed_tab" in xml or "profile_tab" in xml or "search_tab" in xml or "clips_tab" in xml:
+                logger.info("Instagram main interface loaded.")
+                break
+        except Exception:
+            pass
+        random_sleep(1.5, 2, modulable=False)
+    random_sleep(2, 2, modulable=False)
+    
+    # Dump hierarchy for debugging
+    try:
+        xml_dump = device.deviceV2.dump_hierarchy()
+        logger.debug(f"Looking for Back button in hierarchy (length: {len(xml_dump)})")
+        if 'action_bar_button_back' in xml_dump:
+            logger.debug("Back button EXISTS in hierarchy!")
+        else:
+            logger.debug("Back button NOT in hierarchy")
+    except Exception as e:
+        logger.debug(f"Could not dump hierarchy: {e}")
+    
+    # back_button = device.find(resourceId=f"{app_id}:id/action_bar_button_back")
+    # logger.debug(f"Back button exists check: {back_button.exists()}")
+    # 
+    # if back_button.exists():
+    #     logger.info("Found Back button - navigating to Home screen...")
+    #     back_button.click()
+    #     random_sleep(2, 2, modulable=False)
+    #     logger.info("Back navigation complete!")
+    # else:
+    #     logger.debug("No Back button found - already on main screen.")
+
+
     random_sleep()
     if configs.args.close_apps:
         logger.info("Close all the other apps, to avoid interferences...")
-        device.deviceV2.app_stop_all(excludes=[app_id])
+        logger.info("Note: device.app_stop_all() disabled due to IG crashing.")
+        # device.deviceV2.app_stop_all(excludes=[app_id])
         random_sleep()
-    logger.debug("Setting FastInputIME as default keyboard.")
-    device.deviceV2.set_fastinput_ime(True)
+    logger.debug("Setting FastInputIME as default keyboard (disabled due to IG crashing).")
+    # device.deviceV2.set_fastinput_ime(True)
     cmd: str = (
         f"adb{'' if configs.device_id is None else ' -s ' + configs.device_id} shell settings get secure default_input_method"
     )
@@ -294,10 +340,9 @@ def open_instagram(device):
             logger.warning(
                 f"{cmd_res.stdout.replace(nl, '')}. It looks like you don't have FastInputIME installed :S"
             )
-        else:
-            logger.info("FastInputIME is the default keyboard.")
-    else:
-        logger.info("FastInputIME is the default keyboard.")
+    #         logger.info("FastInputIME is the default keyboard.")
+    # else:
+    #     logger.info("FastInputIME is the default keyboard.")
     if configs.args.screen_record:
         try:
             device.start_screenrecord()
@@ -322,10 +367,25 @@ def close_instagram(device):
 
 
 def check_if_crash_popup_is_there(device) -> bool:
+    from GramAddict.core.device_facade import Timeout
     obj = device.find(resourceId=ResourceID.CRASH_POPUP)
     if obj.exists():
         obj.click()
         return True
+
+    # ANR ('Instagram isn't responding') dialog handler
+    anr_wait_btn = device.find(textMatches="(?i)^wait$|^attendre$")
+    if getattr(anr_wait_btn, 'exists', lambda: False)() and anr_wait_btn.exists(Timeout.SHORT):
+        logger.info("ANR dialog detected ('Instagram isn't responding'). Clicking 'Wait'...")
+        anr_wait_btn.click()
+        return True
+
+    anr_close_btn = device.find(textMatches="(?i)^close app$|^fermer l'application$")
+    if getattr(anr_close_btn, 'exists', lambda: False)() and anr_close_btn.exists(Timeout.SHORT):
+        logger.info("ANR dialog detected. Clicking 'Close app'...")
+        anr_close_btn.click()
+        return True
+
     return False
 
 
@@ -667,7 +727,7 @@ def sample_sources(sources, n_sources):
             f"Source list truncated at {len(truncaded)} {'item' if len(truncaded)<=1 else 'items'}."
         )
     logger.info(
-        f"In this session, {'that source' if len(truncaded)<=1 else 'these sources'} will be handled: {', '.join(emoji.emojize(str(x), use_aliases=True) for x in truncaded)}"
+        f"In this session, {'that source' if len(truncaded)<=1 else 'these sources'} will be handled: {', '.join(emoji.emojize(str(x), language='alias') for x in truncaded)}"
     )
     return truncaded
 

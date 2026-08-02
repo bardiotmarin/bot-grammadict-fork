@@ -124,8 +124,22 @@ class ActionUnfollowLeastInteracted(Plugin):
             self._mark_least_interacted_completed(storage)
             device.back()
 
+        attempts = 0
+        max_attempts = 3
+        stalled_unfollowed_count = self.state.unfollowed_count
         while not self.state.is_job_completed and (self.state.unfollowed_count < count):
             job()
+            if self.state.unfollowed_count > stalled_unfollowed_count:
+                # Real progress happened, reset the stall counter.
+                stalled_unfollowed_count = self.state.unfollowed_count
+                attempts = 0
+                continue
+            attempts += 1
+            if not self.state.is_job_completed and attempts >= max_attempts:
+                logger.warning(
+                    f"No unfollow progress after {max_attempts} attempts, stopping this job."
+                )
+                break
 
     def _can_run_least_interacted(self, storage) -> bool:
         """Check if least interacted job can run (24-hour cooldown)"""

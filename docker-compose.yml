@@ -1,0 +1,26 @@
+services:
+  ollama:
+    image: ollama/ollama:latest
+    container_name: ollama_gpu
+    restart: unless-stopped
+    ports:
+      - "11434:11434"
+    dns:
+      - 8.8.8.8
+      - 1.1.1.1
+    environment:
+      - OLLAMA_KEEP_ALIVE=24h        # Garde le modèle en VRAM pour des réponses instantanées
+      - OLLAMA_NUM_PARALLEL=2        # Permet 2 requêtes simultanées
+    volumes:
+      - ollama_storage:/root/.ollama
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: 1
+              capabilities: [gpu]   # Activation du passthrough GPU RTX 2080 Ti
+
+volumes:
+  ollama_storage:
+    name: ollama_storage

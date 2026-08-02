@@ -174,13 +174,15 @@ class Storage:
             return FollowingStatus[user[USER_FOLLOWING_STATUS].upper()]
 
     def add_filter_user(self, username, profile_data, skip_reason=None):
-        user = profile_data.__dict__
-        user["follow_button_text"] = (
-            profile_data.follow_button_text.name
-            if not profile_data.is_restricted
-            else None
-        )
-        user["skip_reason"] = None if skip_reason is None else skip_reason.name
+        user = profile_data.__dict__.copy()
+        
+        btn_text = profile_data.follow_button_text
+        if not profile_data.is_restricted and btn_text is not None:
+             user["follow_button_text"] = btn_text.name if hasattr(btn_text, 'name') else str(btn_text)
+        else:
+             user["follow_button_text"] = None
+             
+        user["skip_reason"] = None if skip_reason is None else skip_reason.name if hasattr(skip_reason, 'name') else str(skip_reason)
         self.history_filter_users[username] = user
         if self.history_filter_users_path is not None:
             with atomic_write(

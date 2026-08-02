@@ -254,6 +254,9 @@ class SessionState:
         time_left_list = []
         current_time = datetime.now()
         delta = timedelta(seconds=delta_sec)
+        if len(working_hours) == 0:
+            return True, 0
+            
         for n in working_hours:
             today = current_time.strftime("%Y-%m-%d")
             inf_value = f"{n.split('-')[0]} {today}"

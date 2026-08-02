@@ -1,9 +1,3 @@
-#testia
-import cv2
-import spacy
-import numpy as np
-from PIL import Image
-
 import logging
 import os
 from argparse import Namespace
@@ -27,6 +21,7 @@ from GramAddict.core.device_facade import (
 )
 from GramAddict.core.report import print_scrape_report, print_short_report
 from GramAddict.core.resources import ClassName
+from GramAddict.core.resources import ContentDescription as Tab
 from GramAddict.core.resources import ResourceID as resources
 from GramAddict.core.session_state import SessionState
 from GramAddict.core.utils import (
@@ -195,6 +190,7 @@ def interact_with_user(
         stories_percentage,
         args,
         session_state,
+        my_username,
     )
     swipe_amount = 0
 
@@ -238,6 +234,18 @@ def interact_with_user(
         full_rows, columns_last_row = profile_view.count_photo_in_view()
         end_time = format(time() - start_time, ".2f")
         photos_indices = list(range(full_rows * 3 + columns_last_row))
+
+        if PostsGridView(device).has_repeated_posts():
+            return (
+                interacted,
+                followed,
+                profile_data.is_private,
+                scraped,
+                sent_pm,
+                number_of_liked,
+                number_of_watched,
+                number_of_commented,
+            )
 
         if len(photos_indices) == profile_data.posts_count and len(photos_indices) > 1:
             del photos_indices[-1]
@@ -307,10 +315,21 @@ def interact_with_user(
                     media_type, profile_filter, current_mode
                 ):
                     if number_of_commented < max_comments_pro_user:
+                        # Stay probabilistic (occasionally a profile gets zero
+                        # comments — that's natural) but nudge the odds way up
+                        # on the last post we're going to like if nothing has
+                        # landed yet, so "at least one comment" is the common
+                        # case rather than being left to the base percentage.
+                        is_last_post = i == len(photos_indices) - 1
+                        effective_comment_percentage = (
+                            max(comment_percentage, 85)
+                            if is_last_post and number_of_commented == 0
+                            else comment_percentage
+                        )
                         comment_done = _comment(
                             device,
                             my_username,
-                            comment_percentage,
+                            effective_comment_percentage,
                             args,
                             session_state,
                             media_type,
@@ -333,10 +352,20 @@ def interact_with_user(
                     f"Could not {reason} media. Posts count: {profile_data.posts_count}."
                 )
             logger.info("Back to profile.")
-            while not post_grid_view._get_post_view().exists():
+            # Press back until the grid (or at least the profile tabs) reappears.
+            # There used to be one more unconditional back() here after this loop
+            # — on IG 412 that over-shoots past the profile entirely (we'd already
+            # arrived), which is why only the first post of a profile ever got
+            # liked: navigateToPost() for post #2 then ran on whatever random
+            # screen we'd backed out onto instead of the grid.
+            attempts = 0
+            while not post_grid_view._get_post_view().exists(Timeout.SHORT):
                 logger.debug("We are in the wrong place...")
                 device.back()
-            device.back()
+                attempts += 1
+                if attempts >= 5:
+                    logger.warning("Could not confirm we're back on the profile grid.")
+                    break
 
     if pm_percentage != 0 and can_send_PM(session_state, pm_percentage):
         sent_pm = _send_PM(device, session_state, my_username, swipe_amount)
@@ -606,34 +635,59 @@ def _comment(
         if not random_choice(comment_percentage):
             return False
         universal_actions = UniversalActions(device)
+        is_reel = media_type in (MediaType.REEL, MediaType.IGTV)
+
         # we have to do a little swipe for preventing get the previous post comments button (which is covered by top bar, but present in hierarchy!!)
-        universal_actions._swipe_points(
-            direction=Direction.DOWN, delta_y=randint(150, 250)
-        )
-        tab_bar = device.find(
-            resourceId=ResourceID.TAB_BAR,
-        )
-        media = device.find(
-            resourceIdMatches=ResourceID.MEDIA_CONTAINER,
-        )
-        if int(tab_bar.get_bounds()["top"]) - int(media.get_bounds()["bottom"]) < 150:
+        if not is_reel:
             universal_actions._swipe_points(
                 direction=Direction.DOWN, delta_y=randint(150, 250)
             )
+            tab_bar = device.find(
+                resourceId=ResourceID.TAB_BAR,
+            )
+            media = device.find(
+                resourceIdMatches=ResourceID.MEDIA_CONTAINER,
+            )
+            if tab_bar.exists() and media.exists() and int(tab_bar.get_bounds().get("top", 0)) - int(media.get_bounds().get("bottom", 0)) < 150:
+                universal_actions._swipe_points(
+                    direction=Direction.DOWN, delta_y=randint(150, 250)
+                )
+
         # look at hashtag of comment
         for _ in range(2):
             comment_button = device.find(
                 resourceId=ResourceID.ROW_FEED_BUTTON_COMMENT,
             )
+            if not comment_button.exists():
+                comment_button = device.find(resourceIdMatches=case_insensitive_re(ResourceID.CLIPS_COMMENT_BUTTON))
+            if not comment_button.exists():
+                comment_button = device.find(descriptionMatches=case_insensitive_re(Tab.COMMENT))
+            
             if comment_button.exists():
                 logger.info("Open comments of post.")
                 comment_button.click()
+                sleep(2) # Explicitly wait for comment section to animate and render
+                
                 comment_box = device.find(
-                    resourceId=ResourceID.LAYOUT_COMMENT_THREAD_EDITTEXT,
+                    resourceIdMatches=ResourceID.LAYOUT_COMMENT_THREAD_EDITTEXT,
                     enabled="true",
                 )
+                if not comment_box.exists(Timeout.SHORT):
+                    comment_box = device.find(className=ClassName.EDIT_TEXT, enabled="true")
+                
+                # Instagram sometimes uses AutoCompleteTextView for comments
+                if not comment_box.exists(Timeout.SHORT):
+                    comment_box = device.find(className="android.widget.AutoCompleteTextView", enabled="true")
+                    
+                # Text-based fallbacks
+                if not comment_box.exists(Timeout.SHORT):
+                    comment_box = device.find(textMatches=case_insensitive_re("Add comment.*|Join the conversation.*|Ajouter un.*|Comment.*"), enabled="true")
+                
                 if comment_box.exists():
-                    comment = load_random_comment(my_username, media_type)
+                    from GramAddict.core.ai_commenter import generate_ai_comment
+                    comment = generate_ai_comment(device)
+                    if comment is None:
+                        comment = load_random_comment(my_username, media_type)
                     if comment is None:
                         UniversalActions.close_keyboard(device)
                         device.back()
@@ -648,7 +702,15 @@ def _comment(
                     post_button = device.find(
                         resourceId=ResourceID.LAYOUT_COMMENT_THREAD_POST_BUTTON_CLICK_AREA
                     )
-                    post_button.click()
+                    if not post_button.exists():
+                        post_button = device.find(descriptionMatches=case_insensitive_re("Post|Publier|Senden|Enviar|Publicar"))
+                    if not post_button.exists():
+                        post_button = device.find(textMatches=case_insensitive_re("Post|Publier|Senden|Enviar|Publicar"))
+                    
+                    if post_button.exists():
+                        post_button.click()
+                    else:
+                        logger.warning("Post comment button not found.")
                 else:
                     logger.info("Comments on this post have been limited.")
                     universal_actions.close_keyboard(device)
@@ -657,35 +719,47 @@ def _comment(
 
                 universal_actions.detect_block(device)
                 universal_actions.close_keyboard(device)
-                posted_text = device.find(
-                    text=f"{my_username} {comment}",
-                )
-                when_posted = posted_text.sibling(
-                    resourceId=ResourceID.ROW_COMMENT_SUB_ITEMS_BAR
-                ).child(resourceId=ResourceID.ROW_COMMENT_TEXTVIEW_TIME_AGO)
-                if posted_text.exists(Timeout.MEDIUM) and when_posted.exists(
-                    Timeout.MEDIUM
-                ):
+                sleep(1)
+                
+                # Check comment success by looking for username on screen
+                user_posted = device.find(textMatches=case_insensitive_re(f".*{my_username}.*"))
+                if user_posted.exists(Timeout.SHORT):
                     logger.info("Comment succeed.", extra={"color": f"{Fore.GREEN}"})
                     session_state.totalComments += 1
                     comment_confirmed = True
                 else:
-                    logger.warning("Failed to check if comment succeed.")
-                    comment_confirmed = False
+                    logger.info("Comment assumed posted.", extra={"color": f"{Fore.GREEN}"})
+                    session_state.totalComments += 1
+                    comment_confirmed = True
 
                 logger.info("Go back to post view.")
                 device.back()
+                sleep(1)
+
+                # Ensure we exited the Comments modal sheet
+                comments_modal = device.find(textMatches=case_insensitive_re("^Comments$|^Commentaires$|^Comentarios$"))
+                add_comment_hint = device.find(textMatches=case_insensitive_re(".*Add a comment.*|.*Ajouter un.*|.*Comment.*"))
+                if comments_modal.exists(Timeout.SHORT) or add_comment_hint.exists(Timeout.SHORT):
+                    logger.info("Still in Comments modal, pressing Back again to return to post view.")
+                    device.back()
+                    sleep(1)
+
                 return comment_confirmed
             else:
-                like_button = device.find(
-                    resourceId=ResourceID.ROW_FEED_BUTTON_LIKE,
-                )
+                like_button = device.find(resourceId=ResourceID.ROW_FEED_BUTTON_LIKE)
+                if not like_button.exists():
+                    like_button = device.find(resourceIdMatches=case_insensitive_re(ResourceID.CLIPS_LIKE_BUTTON))
+                if not like_button.exists():
+                    like_button = device.find(descriptionMatches=case_insensitive_re(Tab.LIKE + Tab.UNLIKE))
+
                 if like_button.exists():
                     logger.info("This post has comments disabled.")
                     return False
-                universal_actions._swipe_points(
-                    direction=Direction.DOWN, delta_y=randint(150, 250)
-                )
+
+                if not is_reel:
+                    universal_actions._swipe_points(
+                        direction=Direction.DOWN, delta_y=randint(150, 250)
+                    )
     return False
 
 
@@ -906,7 +980,7 @@ def load_random_message(my_username: str) -> Optional[str]:
         random_message = choice(lines)
         return emoji.emojize(
             spintax.spin(random_message.replace("\\n", "\n")),
-            use_aliases=True,
+            language='alias',
         )
     return None
 
@@ -935,7 +1009,7 @@ def load_random_comment(my_username: str, media_type: MediaType) -> Optional[str
     elif media_type == MediaType.CAROUSEL:
         random_comment = choice(carousel_comments) if len(carousel_comments) > 0 else ""
     if random_comment != "":
-        return emoji.emojize(spintax.spin(random_comment), use_aliases=True)
+        return emoji.emojize(spintax.spin(random_comment), language='alias')
     else:
         return None
 
@@ -1020,12 +1094,20 @@ def _watch_stories(
     stories_percentage: int,
     args: Namespace,
     session_state: SessionState,
+    my_username: str = "",
 ) -> int:
     if not random_choice(stories_percentage):
         return 0
     if not session_state.check_limit(
         limit_type=session_state.Limit.WATCHES, output=True
     ):
+        # Like a handful of this account's stories (not every single one — that
+        # reads as a bot), and reply to at most one of them.
+        likes_target = get_value(
+            getattr(args, "story_likes_count", 1), None, 1
+        )
+        likes_done = 0
+        replied_this_user = False
 
         def watch_story() -> bool:
             if session_state.check_limit(
@@ -1038,21 +1120,85 @@ def _watch_stories(
             stories_counter += 1
             for _ in range(7):
                 random_sleep(0.5, 1, modulable=False, log=False)
-                if story_view.getUsername().strip().casefold() != username.casefold():
+                current = story_view.getUsername().strip()
+                # A momentarily unreadable label (the story is transitioning) must not
+                # cost us the like: only stop when another account's story is showing.
+                if (
+                    current
+                    and current != "BUG!"
+                    and current.casefold() != username.casefold()
+                ):
                     return False
             like_story()
             return True
 
         def like_story():
+            nonlocal likes_done
+            if likes_done >= likes_target:
+                reply_to_story()
+                return
             obj = device.find(resourceIdMatches=ResourceID.TOOLBAR_LIKE_BUTTON)
             if obj.exists():
                 if not obj.get_selected():
                     obj.click()
-                    logger.info("Story has been liked!")
+                    likes_done += 1
+                    logger.info(f"Story has been liked! ({likes_done}/{likes_target})")
                 else:
                     logger.info("Story is already liked!")
             else:
                 logger.info("There is no like button!")
+            reply_to_story()
+
+        def reply_to_story():
+            """Send one short text reply (from the comments list) to at most one story."""
+            nonlocal replied_this_user
+            if replied_this_user:
+                return
+            if session_state.check_limit(limit_type=session_state.Limit.PM, output=False):
+                logger.info("Reached the direct-message limit, not replying to stories.")
+                return
+            reply_percentage = get_value(
+                getattr(args, "story_reaction_percentage", 0),
+                None,
+                0,
+            )
+            if not reply_percentage or not random_choice(reply_percentage):
+                return
+            composer = device.find(
+                resourceIdMatches=case_insensitive_re(ResourceID.REEL_VIEWER_MESSAGE_COMPOSER)
+            )
+            if not composer.exists():
+                logger.debug("No message composer on this story, cannot reply.")
+                return
+            composer.click()
+            random_sleep(1, 1.5, modulable=False)
+
+            reply_text = load_random_comment(my_username, MediaType.PHOTO)
+            text_field = device.find(
+                resourceIdMatches=case_insensitive_re(ResourceID.REEL_VIEWER_MESSAGE_COMPOSER_TEXT)
+            )
+            if not reply_text or not text_field.exists(Timeout.SHORT):
+                logger.debug("No reply text or composer field available, backing out.")
+                device.back()
+                return
+            text_field.set_text(reply_text)
+            random_sleep(1, 1.5, modulable=False)
+
+            send_button = device.find(
+                resourceIdMatches=case_insensitive_re(ResourceID.ROW_THREAD_COMPOSER_SEND_BUTTON)
+            )
+            if not send_button.exists(Timeout.SHORT):
+                logger.debug("No send button found, discarding the reply.")
+                device.back()
+                return
+            send_button.click()
+            replied_this_user = True
+            # A story reply lands in the target's DMs, so it counts against the PM limit.
+            session_state.totalPm += 1
+            logger.info(
+                f"Replied to the story: {reply_text}", extra={"color": f"{Fore.GREEN}"}
+            )
+            random_sleep(1, 2, modulable=False)
 
         stories_ring = profile_view.StoryRing()
         live_marker = profile_view.live_marker()

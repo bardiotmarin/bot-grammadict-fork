@@ -168,7 +168,6 @@ def start_bot(**kwargs):
                         logger.warning(
                             "If you want to avoid pressing ENTER next run, add allow-untested-ig-version: true in your config.yml file. (read the docs for more info)"
                         )
-                        input()
 
             except Exception as e:
                 logger.error(f"Error retrieving the IG version. Exception: {e}")

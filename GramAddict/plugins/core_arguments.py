@@ -95,6 +95,20 @@ class CoreArguments(Plugin):
                 "default": "30-40",
             },
             {
+                "arg": "--story-likes-count",
+                "nargs": None,
+                "help": "how many of a user's stories to like, 1 by default. It can be a number (e.g. 2) or a range (e.g. 1-5)",
+                "metavar": "1-5",
+                "default": "1",
+            },
+            {
+                "arg": "--story-reaction-percentage",
+                "nargs": None,
+                "help": "chance of replying with a short text (from the comments list) to one of a user's stories, 0 by default (disabled). It can be a number (e.g. 20) or a range (e.g. 20-40)",
+                "metavar": "20-40",
+                "default": "0",
+            },
+            {
                 "arg": "--carousel-count",
                 "nargs": None,
                 "help": "number of photos in carousel to watch, 1 by default. It can be a number (e.g. 2) or a range (e.g. 2-4)",

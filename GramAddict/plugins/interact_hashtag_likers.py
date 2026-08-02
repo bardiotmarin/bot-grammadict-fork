@@ -86,10 +86,12 @@ class InteractHashtagLikers(Plugin):
             ) = self.session_state.check_limit(limit_type=self.session_state.Limit.ALL)
             limit_reached = active_limits_reached or actions_limit_reached
             self.state = State()
+            if not source:
+                continue
             if source[0] != "#":
                 source = "#" + source
             logger.info(
-                f"Handle {emoji.emojize(source, use_aliases=True)}",
+                f"Handle {emoji.emojize(source, language='alias')}",
                 extra={"color": f"{Fore.BLUE}"},
             )
 
@@ -129,8 +131,16 @@ class InteractHashtagLikers(Plugin):
                 )
                 self.state.is_job_completed = True
 
+            attempts = 0
+            max_attempts = 3
             while not self.state.is_job_completed and not limit_reached:
                 job()
+                attempts += 1
+                if not self.state.is_job_completed and attempts >= max_attempts:
+                    logger.warning(
+                        f"Giving up on {source} after {max_attempts} failed attempts, moving to the next source."
+                    )
+                    break
 
             if limit_reached:
                 logger.info("Ending session.")
