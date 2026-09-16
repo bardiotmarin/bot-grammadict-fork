@@ -26,3 +26,10 @@ Pipfile.lock
 *.bak[0-9]*
 *.bak_*
 *.BACKUP.xml
+
+# Captures de debug (hierarchies UI, journaux) : elles contiennent le nom du
+# compte et le contenu de l'ecran. Jamais sur GitHub.
+/dump*.xml
+/*_dump*.xml
+/log.txt
+/temp_error.txt
