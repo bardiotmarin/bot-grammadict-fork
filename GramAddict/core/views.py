@@ -4,7 +4,7 @@ import os
 import re
 from collections import Counter
 from enum import Enum, auto
-from random import randint
+from random import randint, uniform
 from typing import Optional, Tuple, Any
 import emoji
 from colorama import Fore
@@ -202,7 +202,7 @@ class TabBarView:
                 if not button.exists():
                     button = self.device.find(descriptionMatches=case_insensitive_re(TabBarText.PROFILE_CONTENT_DESC))
 
-            if button and button.exists(Timeout.SHORT):
+            if button and button.exists(Timeout.MEDIUM):
                 logger.debug(f"Found tab {tab_name}, clicking...")
                 button.click(sleep=SleepTime.SHORT)
                 return
@@ -210,7 +210,7 @@ class TabBarView:
             # Fallback: Try to find the specific tab bar container and click by index
             logger.info(f"Using fallback index navigation for {tab_name}")
             tab_bar = self._getTabBar()
-            if tab_bar.exists(Timeout.SHORT):
+            if tab_bar.exists(Timeout.MEDIUM):
                 # Instagram v412 order: Home, Reels, Message, Search, Profile
                 index_map = {
                     TabBarTabs.HOME: 0,
@@ -545,7 +545,13 @@ class PostsViewList:
                     # cross Instagram's ViewPager2 snap threshold and bounces back
                     # to the same reel.
                     logger.info("On a Reel, using full-screen swipe to advance.")
-                    self.device.swipe_points(displayWidth / 2, displayHeight * 0.85, displayWidth / 2, displayHeight * 0.15)
+                    self.device.swipe_points(
+                        displayWidth / 2,
+                        displayHeight * 0.85,
+                        displayWidth / 2,
+                        displayHeight * 0.15,
+                        duration=uniform(0.06, 0.12),
+                    )
                     return True
                 gap_view_obj = self.device.find(index=-1, resourceIdMatches=containers_gap)
                 containers_content_obj = self.device.find(resourceIdMatches=containers_content)
@@ -734,6 +740,7 @@ class PostsViewList:
     def _check_if_ad_or_hashtag(self, post_owner_obj) -> Tuple[bool, bool, Optional[str]]:
         is_hashtag = False
         is_ad = False
+        ad_reason = None
         owner_name = post_owner_obj.get_text() or ""
         ad_like_obj = post_owner_obj.sibling(resourceId=safe_resource('SECONDARY_LABEL'))
         if owner_name.startswith("#"): is_hashtag = True
@@ -742,9 +749,11 @@ class PostsViewList:
         
         if ad_like_obj.exists():
             ad_like_txt = (ad_like_obj.get_text() or "").lower()
-            if any(keyword in ad_like_txt for keyword in ad_keywords):
+            matched = [k for k in ad_keywords if k in ad_like_txt]
+            if matched:
                 is_ad = True
-                
+                ad_reason = "branche1 secondary_label=%r mot_declencheur=%r" % (ad_like_txt, matched[0])
+
         # Fallback check for content-desc that might contain "Sponsored Reel" (e.g. hellofreshfrance dump)
         try:
             bounds = post_owner_obj.get_bounds()
@@ -753,9 +762,21 @@ class PostsViewList:
                 sponsored_node = self.device.find(textMatches=case_insensitive_re("Sponsored|Sponsorisé|Patrocinado|Ad|Publicité"))
                 if sponsored_node.exists() and abs(sponsored_node.get_bounds()['top'] - bounds['top']) < 500:
                     is_ad = True
+                    try:
+                        _txt = sponsored_node.get_text()
+                    except Exception:
+                        _txt = "<texte illisible>"
+                    ad_reason = "branche2 texte=%r delta_px=%s" % (
+                        _txt, abs(sponsored_node.get_bounds()['top'] - bounds['top']))
         except:
             pass
-            
+
+        # ADDIAG : instrumentation temporaire. On ne change aucun comportement,
+        # on note seulement QUELLE branche a decide "pub" et sur QUEL texte,
+        # pour comprendre les 537 posts sur 563 ecartes le 05/09.
+        if is_ad:
+            logger.info("ADDIAG: owner=%r -> AD par %s" % (owner_name, ad_reason or "AUCUNE BRANCHE (anormal)"))
+
         return is_ad, is_hashtag, owner_name
 
     def get_text_from_screen(self, pt, obj) -> Optional[str]:
@@ -1006,7 +1027,7 @@ class ProfileView:
     def _getSomeText(self, resource_id=None):
         if not resource_id: return None
         view = self.device.find(resourceIdMatches=case_insensitive_re(resource_id))
-        if view.exists(): return view.get_text()
+        if view.exists(Timeout.SHORT): return view.get_text()
         return None
     def getUsername(self):
         try:
@@ -1055,7 +1076,7 @@ class ProfileView:
             text = self.getSomeText('.*profile_header_familiar_followers_value.*')
         if not text:
             elem = self.device.find(descriptionMatches=case_insensitive_re('.*followers.*'))
-            if elem.exists():
+            if elem.exists(Timeout.SHORT):
                 text = elem.get_desc()
         return self._parse_profile_count(text)
         
@@ -1065,7 +1086,7 @@ class ProfileView:
             text = self.getSomeText('.*profile_header_familiar_following_value.*')
         if not text:
             elem = self.device.find(descriptionMatches=case_insensitive_re('.*following.*'))
-            if elem.exists():
+            if elem.exists(Timeout.SHORT):
                 text = elem.get_desc()
         return self._parse_profile_count(text)
     def getProfileInfo(self):
@@ -1476,6 +1497,20 @@ class PostsGridView:
             desc = ""
         media_type, obj_count = self._media_from_description(desc)
         target.click()
+        random_sleep(0.5, 1, modulable=False)
+        # A stale/mistimed tap can land without Instagram ever transitioning
+        # off the grid. Blindly returning OpenedPostView() here regardless
+        # made callers believe a post opened and go on to scroll/inspect the
+        # still-visible grid forever — there is no post-row/like-count data
+        # there to find, so it just spun in place indefinitely.
+        grid_marker = self.device.find(
+            resourceIdMatches=case_insensitive_re(safe_resource('MEDIA_SET_ROW_CONTENT_IDENTIFIER'))
+        )
+        if grid_marker.exists(Timeout.SHORT):
+            logger.warning(
+                f"Clicking the post at row {row + 1}, column {col + 1} didn't open it."
+            )
+            return None, MediaType.UNKNOWN, 0
         return OpenedPostView(self.device), media_type, obj_count
 
     def _get_post_view(self):

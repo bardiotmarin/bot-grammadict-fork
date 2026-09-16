@@ -684,8 +684,21 @@ def _comment(
                     comment_box = device.find(textMatches=case_insensitive_re("Add comment.*|Join the conversation.*|Ajouter un.*|Comment.*"), enabled="true")
                 
                 if comment_box.exists():
-                    from GramAddict.core.ai_commenter import generate_ai_comment
+                    from GramAddict.core.ai_commenter import (
+                        SKIP_POST,
+                        generate_ai_comment,
+                    )
+
                     comment = generate_ai_comment(device)
+                    if comment == SKIP_POST:
+                        # Le modele a vu un post qu'il ne faut pas commenter
+                        # (personne posant, contenu hors sujet). On sort sans
+                        # rien ecrire : retomber sur comments_list.txt posterait
+                        # justement l'emoji qu'on veut eviter sous ce post-la.
+                        logger.info("Post non commente (juge inapproprie par l'analyse d'image).")
+                        UniversalActions.close_keyboard(device)
+                        device.back()
+                        return False
                     if comment is None:
                         comment = load_random_comment(my_username, media_type)
                     if comment is None:

@@ -416,16 +416,21 @@ class DeviceFacade:
         except JSONRPCError as e:
             raise DeviceFacade.JsonRpcError(e)
 
-    def swipe_points(self, sx, sy, ex, ey, random_x=True, random_y=True):
+    def swipe_points(self, sx, sy, ex, ey, random_x=True, random_y=True, duration=None):
         if random_x:
             sx = int(sx * uniform(0.85, 1.15))
             ex = int(ex * uniform(0.85, 1.15))
         if random_y:
             ey = int(ey * uniform(0.98, 1.02))
         sy = int(sy)
+        # 0.2-0.5s is a deliberate scroll, not a flick. Reels' ViewPager2 needs a
+        # genuine high-velocity fling to cross its page-snap threshold, so callers
+        # that need that (see the Reels branch in swipe_to_fit_posts) pass a much
+        # shorter duration here instead of using the default.
+        swipe_duration = duration if duration is not None else uniform(0.2, 0.5)
         try:
             logger.debug(f"Swipe from: ({sx},{sy}) to ({ex},{ey}).")
-            self.deviceV2.swipe_points([[sx, sy], [ex, ey]], uniform(0.2, 0.5))
+            self.deviceV2.swipe_points([[sx, sy], [ex, ey]], swipe_duration)
             DeviceFacade.sleep_mode(SleepTime.TINY)
         except JSONRPCError as e:
             raise DeviceFacade.JsonRpcError(e)

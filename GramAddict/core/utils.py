@@ -47,7 +47,16 @@ def load_config(config: Config):
 
 
 def update_available():
-    response = requests.get("https://pypi.python.org/pypi/gramaddict/json")
+    try:
+        response = requests.get(
+            "https://pypi.python.org/pypi/gramaddict/json", timeout=5
+        )
+    except Exception:
+        # Verifier l'existence d'une mise a jour est accessoire : une coupure
+        # reseau de quelques secondes ne doit pas empecher la session de demarrer.
+        # On renvoie le meme resultat qu'une reponse HTTP invalide, cas que
+        # check_if_updated() gere deja ("Unable to get latest version from pypi!").
+        return False, None
     if response.ok:
         latest_version = response.json()["info"]["version"]
 
@@ -325,18 +334,31 @@ def open_instagram(device):
     cmd: str = (
         f"adb{'' if configs.device_id is None else ' -s ' + configs.device_id} shell settings get secure default_input_method"
     )
-    cmd_res = subprocess.run(cmd, stdout=PIPE, stderr=PIPE, shell=True, encoding="utf8")
-    if cmd_res.stdout.replace(nl, "") != FastInputIME:
+    try:
+        cmd_res = subprocess.run(
+            cmd, stdout=PIPE, stderr=PIPE, shell=True, encoding="utf8", timeout=15
+        )
+    except subprocess.TimeoutExpired:
+        # adb can hang indefinitely if the automation channel to the device is
+        # wedged - without a timeout this used to freeze the whole bot with no
+        # way to recover.
+        logger.warning("adb didn't respond while checking the default keyboard, skipping.")
+        cmd_res = None
+    if cmd_res is not None and cmd_res.stdout.replace(nl, "") != FastInputIME:
         logger.warning(
             f"FastInputIME is not the default keyboard! Default is: {cmd_res.stdout.replace(nl, '')}. Changing it via adb.."
         )
         cmd: str = (
             f"adb{'' if configs.device_id is None else ' -s ' + configs.device_id} shell ime set {FastInputIME}"
         )
-        cmd_res = subprocess.run(
-            cmd, stdout=PIPE, stderr=PIPE, shell=True, encoding="utf8"
-        )
-        if cmd_res.stdout.startswith("Error:"):
+        try:
+            cmd_res = subprocess.run(
+                cmd, stdout=PIPE, stderr=PIPE, shell=True, encoding="utf8", timeout=15
+            )
+        except subprocess.TimeoutExpired:
+            logger.warning("adb didn't respond while setting the keyboard, skipping.")
+            cmd_res = None
+        if cmd_res is not None and cmd_res.stdout.startswith("Error:"):
             logger.warning(
                 f"{cmd_res.stdout.replace(nl, '')}. It looks like you don't have FastInputIME installed :S"
             )
@@ -605,7 +627,7 @@ def save_crash(device):
 
 
 def trim_txt(source: str, target: str) -> None:
-    with open(source, "r", encoding="utf-8") as f:
+    with open(source, "r", encoding="utf-8", errors="replace") as f:
         lines = f.readlines()
     tail = next(
         (

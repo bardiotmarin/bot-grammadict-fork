@@ -8,6 +8,8 @@ from http.client import HTTPException
 from socket import timeout
 
 from colorama import Fore, Style
+import requests.exceptions
+from adbutils.errors import AdbError
 from uiautomator2.exceptions import UiObjectNotFoundError
 
 from GramAddict.core.device_facade import DeviceFacade
@@ -80,6 +82,27 @@ def run_safely(device, device_id, sessions, session_state, screen_record, config
                 timeout,
                 UiObjectNotFoundError,
                 EmptyList,
+                # Erreurs de communication avec atx-agent dans l'emulateur.
+                # Elles sont TRANSITOIRES : uiautomator2 se repare tout seul
+                # ("atx-agent has something wrong, auto recovering" puis
+                # "device is online"). Sans cette ligne elles tombaient dans le
+                # "except Exception" plus bas, qui tue la session alors que la
+                # connexion revenait 3 secondes plus tard.
+                # RequestException couvre ConnectionError, ConnectTimeout et
+                # ReadTimeout. Le nombre de redemarrages reste borne par
+                # total-crashes-limit, donc pas de boucle infinie.
+                requests.exceptions.RequestException,
+                # Perte du transport adb vers la VM ("AdbError: closed",
+                # "AdbTimeout", ... -- AdbError est la classe de base des trois
+                # erreurs d'adbutils). C'est le pendant, une couche plus bas, de
+                # RequestException ci-dessus : quand le transport tombe, le port
+                # forwarde vers atx-agent meurt avec lui, donc uiautomator2
+                # echoue en HTTP PUIS en adb. Sa reparation automatique
+                # (_setup_atx_agent) passe elle-meme par adb et levait cette
+                # erreur depuis le chemin de secours, ce qui tombait dans le
+                # "except Exception" plus bas et tuait la session alors que la
+                # VM etait toujours la. Borne par total-crashes-limit.
+                AdbError,
             ):
                 restart(
                     device,
@@ -118,10 +141,21 @@ def restart(
 ):
     if print_traceback:
         logger.error(traceback.format_exc())
-        save_crash(device)
-    logger.info(
-        f"List of running apps: {', '.join(device.deviceV2.app_list_running())}."
-    )
+        # save_crash() prend une capture et un dump via le device : sur un
+        # transport mort il leve AdbError (il ne rattrape que RuntimeError).
+        # Leve DEPUIS un bloc except, l'erreur ne serait plus rattrapee par
+        # personne et tuerait la session que l'on est justement en train de
+        # recuperer. Un diagnostic manquant ne doit jamais couter la session.
+        try:
+            save_crash(device)
+        except Exception as diag_error:
+            logger.warning(f"Impossible de sauvegarder le crash: {diag_error}")
+    try:
+        logger.info(
+            f"List of running apps: {', '.join(device.deviceV2.app_list_running())}."
+        )
+    except Exception as diag_error:
+        logger.warning(f"Liste des apps indisponible: {diag_error}")
     if configs.args.count_app_crashes or normal_crash:
         session_state.totalCrashes += 1
         if session_state.check_limit(

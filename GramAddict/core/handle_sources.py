@@ -363,7 +363,21 @@ def handle_likers(
     post_description = ""
     nr_same_post = 0
     nr_same_posts_max = 3
+    nr_posts_scanned = 0
+    nr_posts_scanned_max = 30
     while True:
+        nr_posts_scanned += 1
+        if nr_posts_scanned > nr_posts_scanned_max:
+            # The same-post detector only guards against being stuck on one
+            # post; it won't catch scrolling through many *different* posts
+            # that all fail to yield a likers container (e.g. a broken UI
+            # selector for this Instagram version) - without this, that scrolls
+            # forever. Give up on this source and move on.
+            logger.info(
+                f"Scanned {nr_posts_scanned_max} posts without finding any usable likers container. Finish.",
+                extra={"color": f"{Fore.CYAN}"},
+            )
+            break
         flag, post_description, _, _, _, _ = PostsViewList(device)._check_if_last_post(
             post_description, current_job
         )
@@ -416,6 +430,7 @@ def handle_likers(
             except EmptyList:
                 logger.warning("The likers list is empty, moving on to the next post.")
                 device.back()
+                PostsViewList(device).swipe_to_fit_posts(SwipeTo.NEXT_POST)
                 break
             try:
                 for item in user_container:
@@ -576,6 +591,8 @@ def handle_posts(
     nr_consecutive_already_interacted = 0
     already_liked_count = 0
     already_liked_count_limit = 20
+    nr_consecutive_unidentified_posts = 0
+    nr_consecutive_unidentified_posts_max = 5
     post_view_list = PostsViewList(device)
     opened_post_view = OpenedPostView(device)
     while True:
@@ -587,6 +604,24 @@ def handle_posts(
             is_hashtag,
             has_tags,
         ) = post_view_list._check_if_last_post(post_description, current_job)
+        if not username:
+            # _check_if_last_post()/​_post_owner() couldn't identify the post author
+            # (Instagram likely changed the feed row layout). The "same post"
+            # safety net above relies on that same detection and never fires in
+            # this case, so without this counter the job would scroll blindly
+            # through the whole session without ever doing anything.
+            nr_consecutive_unidentified_posts += 1
+            if (
+                nr_consecutive_unidentified_posts
+                == nr_consecutive_unidentified_posts_max
+            ):
+                logger.warning(
+                    f"Could not identify the post author {nr_consecutive_unidentified_posts_max} times in a row "
+                    "(Instagram's feed layout may have changed). Stopping this job instead of scrolling blindly."
+                )
+                break
+        else:
+            nr_consecutive_unidentified_posts = 0
         has_likers, number_of_likers = post_view_list._find_likers_container()
         already_liked, _ = opened_post_view._is_post_liked()
         if not (is_ad or is_hashtag):
@@ -705,7 +740,10 @@ def handle_posts(
                                         break
                             else:
                                 likes_failed += 1
-                    if current_job != "feed":
+                    if current_job != "feed" and username:
+                        # An empty username means the post author couldn't be identified
+                        # above; _post_owner()'s textStartsWith(username) filter degrades
+                        # to "matches anything" when username is "", so it must not run.
                         opened, _, _ = post_view_list._post_owner(
                             current_job, Owner.OPEN, username
                         )
@@ -828,6 +866,7 @@ def iterate_over_followers(
             )
 
     total_users_processed = users_scrolled
+    consecutive_empty_views = 0
 
     while True:
         logger.info("Iterate over visible followers.")
@@ -837,7 +876,21 @@ def iterate_over_followers(
         user_list = device.find(
             resourceIdMatches=self.ResourceID.USER_LIST_CONTAINER,
         )
-        row_height, n_users = inspect_current_view(user_list)
+        try:
+            row_height, n_users = inspect_current_view(user_list)
+        except EmptyList:
+            consecutive_empty_views += 1
+            if consecutive_empty_views >= 3:
+                logger.warning(
+                    "Followers list stayed empty after retries, ending this job."
+                )
+                return
+            logger.warning(
+                "Followers list is empty, probably still loading. Retrying..."
+            )
+            random_sleep(2, 4, modulable=False)
+            continue
+        consecutive_empty_views = 0
         try:
             for item in user_list:
                 try:
