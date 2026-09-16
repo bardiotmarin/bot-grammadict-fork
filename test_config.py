@@ -1,6 +1,8 @@
 import sys
 import yaml
-sys.argv = ['run.py', '--config', 'd:/automation/android_bot_automation_insta/accounts/mon_compte/config.yml']
+if len(sys.argv) != 2:
+    sys.exit("Usage : python test_config.py accounts/<compte>/config.yml")
+sys.argv = ['run.py', '--config', sys.argv[1]]
 
 # Let's just use GramAddict
 sys.path.insert(0, ".")

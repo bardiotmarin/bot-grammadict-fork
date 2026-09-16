@@ -1,3 +1,5 @@
+param([Parameter(Mandatory = $true)][string]$Account)
+
 Set-Location $PSScriptRoot
 
 Write-Output "=== Début du script launch_bot.ps1 ==="
@@ -34,7 +36,7 @@ $env:PATH = "$venvScripts;$env:PATH"
 Write-Output "Lancement du bot GramAddict via start_bot.bat..."
 $scriptPath = Join-Path $PSScriptRoot "start_bot.bat"
 $WshShell = New-Object -ComObject WScript.Shell
-$WshShell.Run("cmd.exe /c `"$scriptPath`"", 0, $true)
+$WshShell.Run("cmd.exe /c `"`"$scriptPath`" $Account`"", 0, $true)
 
 
 Write-Output "Pause 10 secondes après lancement du bot..."

@@ -1,6 +1,9 @@
+import sys
 import yaml
 
-config_path = "accounts/mon_compte/config.yml"
+if len(sys.argv) != 2:
+    sys.exit("Usage : python format_clean_yaml.py accounts/<compte>/config.yml")
+config_path = sys.argv[1]
 
 with open(config_path, "r", encoding="utf-8") as f:
     data = yaml.safe_load(f)
